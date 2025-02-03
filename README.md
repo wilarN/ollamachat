@@ -3,6 +3,7 @@
 
 Empower Minecraft players to interact with locally deployed AI models through in-game commands! Built on [Ollama](https://ollama.ai/), this mod enables dynamic AI-generated conversations.
 
+Thank [DeepSeek Chat](https://chat.deepseek.com/) for helping me solve various problems and writing most of the network communication code and other code.
 ---
 
 ## 🛠️ Prerequisites

@@ -3,6 +3,8 @@
 
 让 Minecraft 玩家通过游戏内命令与本地部署的 AI 模型交互！本模组基于 [Ollama](https://ollama.ai/) 实现，支持调用本地模型生成对话响应。
 
+感谢[deepseek](https://chat.deepseek.com/) chat 帮我解决疑难杂症，并编写大部分网络通信代码和其他代码。
+
 ---
 
 ## 🛠️ 前置要求
