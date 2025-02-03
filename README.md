@@ -1,3 +1,4 @@
+[中文](README_CN.md)
 # OllamaChat Mod
 
 Empower Minecraft players to interact with locally deployed AI models through in-game commands! Built on [Ollama](https://ollama.ai/), this mod enables dynamic AI-generated conversations.

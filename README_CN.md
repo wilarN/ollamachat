@@ -1,3 +1,4 @@
+[English](README.md)
 # OllamaChat 模组
 
 让 Minecraft 玩家通过游戏内命令与本地部署的 AI 模型交互！本模组基于 [Ollama](https://ollama.ai/) 实现，支持调用本地模型生成对话响应。
