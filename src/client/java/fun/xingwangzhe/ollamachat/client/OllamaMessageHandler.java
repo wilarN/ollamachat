@@ -36,7 +36,7 @@ public class OllamaMessageHandler {
         if (message.startsWith("ai ")) {
             OllamaDebugTracker.setMessageSource(true);
             OllamaHttpClient.handleAIRequest(message.substring(3), true);
-            return true; // 阻止原消息发送
+            return true;
         }
         return true;
     }

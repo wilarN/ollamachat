@@ -40,7 +40,7 @@ public class OllamaHttpClient {
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(OLLAMA_API_URL))
-                .timeout(Duration.ofSeconds(30))
+                .timeout(Duration.ofSeconds(60))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
                 .build();
