@@ -21,13 +21,15 @@ public class OllamaMessageHandler {
                                           MessageType.Parameters parameters, Instant instant) {
         if (signedMessage == null) return;
 
-        String messageText = signedMessage.getSignedContent();
         String senderName = gameProfile != null ? gameProfile.getName() : "Unknown";
+        if (senderName.equals("[AI]")) return;
+
+        String messageText = signedMessage.getSignedContent();
         boolean isClientMessage = senderName.equals(MinecraftClient.getInstance().getSession().getUsername());
 
         OllamaDebugTracker.setMessageSource(isClientMessage);
 
-        if (!isClientMessage && senderName.equals("[AI]") && messageText.startsWith("ai ")) {
+        if (!isClientMessage && messageText.startsWith("ai ")) {
             OllamaHttpClient.handleAIRequest(messageText.substring(3), isClientMessage);
         }
     }
@@ -36,7 +38,7 @@ public class OllamaMessageHandler {
         if (message.startsWith("ai ")) {
             OllamaDebugTracker.setMessageSource(true);
             OllamaHttpClient.handleAIRequest(message.substring(3), true);
-            return true;
+            return false;
         }
         return true;
     }

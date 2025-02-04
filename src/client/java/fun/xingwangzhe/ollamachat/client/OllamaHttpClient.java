@@ -3,6 +3,7 @@ package fun.xingwangzhe.ollamachat.client;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.text.Text;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -14,7 +15,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class OllamaHttpClient {
-    private static final String OLLAMA_API_URL = "http://localhost:11434/api/chat";
+    // 修改为生成接口地址
+    private static final String OLLAMA_API_URL = "http://localhost:11434/api/generate";
     private static final HttpClient httpClient = HttpClient.newHttpClient();
     private static final AtomicInteger activeRequests = new AtomicInteger(0);
     private static final ExecutorService requestExecutor = Executors.newCachedThreadPool();
@@ -27,13 +29,18 @@ public class OllamaHttpClient {
         }
 
         activeRequests.incrementAndGet();
+
+        // 增强输入清洗
         String escapedInput = userInput
                 .replace("\\", "\\\\")
                 .replace("\"", "\\\"")
-                .replace("\n", "\\n");
+                .replace("\t", "    ")  // 替换制表符
+                .replace("\n", "\\n")   // 处理换行符
+                .replaceAll("[\\x00-\\x1F]", ""); // 去除控制字符
 
+        // 根据生成接口调整请求体
         String requestBody = String.format(
-                "{\"model\": \"%s\", \"messages\": [{\"role\": \"user\", \"content\": \"%s\"}], \"stream\": false, \"num_predict\": 60}",
+                "{\"model\": \"%s\", \"prompt\": \"%s\", \"stream\": false, \"num_predict\": 60}",
                 currentModel, escapedInput);
 
         OllamaDebugTracker.setLastRequest(requestBody);
@@ -69,13 +76,19 @@ public class OllamaHttpClient {
     private static String parseResponse(String responseBody) {
         try {
             JsonObject jsonObject = JsonParser.parseString(responseBody).getAsJsonObject();
-            if (jsonObject.has("message") && jsonObject.get("message").isJsonObject()) {
-                JsonObject messageObj = jsonObject.getAsJsonObject("message");
-                if (messageObj.has("content")) {
-                    String responseText = messageObj.get("content").getAsString();
-                    responseText = responseText.replaceAll("<[^>]*>", "");
-                    return responseText.length() > 500 ? responseText.substring(0, 500) + "..." : responseText;
-                }
+            if (jsonObject.has("response")) {
+                String responseText = jsonObject.get("response").getAsString();
+
+                // 增强输出处理
+                responseText = responseText
+                        .replaceAll("<[^>]*>", "")   // 去除HTML标签
+                        .replace("\n", " ")          // 替换换行符为空格
+                        .replaceAll("\\s{2,}", " ")  // 合并多个空格
+                        .trim();
+
+                return responseText.length() > 500 ?
+                        responseText.substring(0, 500) + "..." :
+                        responseText;
             }
         } catch (Exception e) {
             return Text.translatable("command.ollama.error.parse_failed").getString();
@@ -85,8 +98,10 @@ public class OllamaHttpClient {
 
     private static void sendAsPlayerMessage(String message) {
         MinecraftClient.getInstance().execute(() -> {
-            if (MinecraftClient.getInstance().player != null) {
-                MinecraftClient.getInstance().player.sendMessage(Text.of(message), false);
+            ClientPlayerEntity player = MinecraftClient.getInstance().player;
+            if (player != null) {
+                String formattedMsg = "[AI] " + message;
+                player.networkHandler.sendChatMessage(formattedMsg);
             }
         });
     }

@@ -16,39 +16,53 @@ public class OllamaCommandHandler {
     private static final String GENERIC_ERROR = "command.ollama.error.generic";
     private static final String MODEL_NOT_FOUND_ERROR = "command.ollama.error.model_not_found";
 
-    public static void registerCommands(CommandDispatcher<FabricClientCommandSource> dispatcher) {
-        SuggestionProvider<FabricClientCommandSource> MODEL_SUGGESTIONS = (context, builder) -> {
-            OllamaModelManager.getCachedModels().forEach(model -> {
-                if (!model.startsWith("command.ollama.error")) {
-                    builder.suggest(model);
+    private static final SuggestionProvider<FabricClientCommandSource> MODEL_SUGGESTIONS = (context, builder) -> {
+        try {
+            Process process = new ProcessBuilder("ollama", "list").start();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                reader.readLine(); // Skip header
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (!line.trim().isEmpty()) {
+                        String modelName = line.split("\\s+")[0];
+                        builder.suggest(modelName);
+                    }
                 }
-            });
-            return builder.buildFuture();
-        };
+            }
+        } catch (Exception e) {
+            builder.suggest(Text.translatable("command.ollama.error.list_failed").getString());
+        }
+        return CompletableFuture.completedFuture(builder.build());
+    };
 
+    public static void registerCommands(CommandDispatcher<FabricClientCommandSource> dispatcher) {
         dispatcher.register(ClientCommandManager.literal("ollama")
-                // list 命令
                 .then(ClientCommandManager.literal("list")
                         .executes(context -> {
                             COMMAND_EXECUTOR.submit(() -> listModels(context.getSource()));
                             context.getSource().sendFeedback(Text.translatable("command.ollama.status.list_running"));
                             return 1;
                         }))
-                // serve 命令
                 .then(ClientCommandManager.literal("serve")
                         .executes(context -> {
                             COMMAND_EXECUTOR.submit(() -> serveOllama(context.getSource()));
                             context.getSource().sendFeedback(Text.translatable("command.ollama.status.serve_starting"));
                             return 1;
                         }))
-                // ps 命令
                 .then(ClientCommandManager.literal("ps")
                         .executes(context -> {
                             COMMAND_EXECUTOR.submit(() -> listRunningModels(context.getSource()));
                             context.getSource().sendFeedback(Text.translatable("command.ollama.status.ps_running"));
                             return 1;
                         }))
-                // model 命令
+                .then(ClientCommandManager.literal("refresh")
+                        .executes(context -> {
+                            COMMAND_EXECUTOR.submit(() -> {
+                                OllamaModelManager.updateModelsFromSystem();
+                                context.getSource().sendFeedback(Text.translatable("command.ollama.status.models_refreshed"));
+                            });
+                            return 1;
+                        }))
                 .then(ClientCommandManager.literal("model")
                         .then(ClientCommandManager.argument("modelname", StringArgumentType.greedyString())
                                 .suggests(MODEL_SUGGESTIONS)
@@ -84,11 +98,9 @@ public class OllamaCommandHandler {
         executeCommand(source, "ps", "command.ollama.status.ps_success");
     }
 
-    // 完整命令执行方法
     private static void executeCommand(FabricClientCommandSource source, String subCommand, String successMessage, Object... args) {
         try {
             ProcessBuilder processBuilder = new ProcessBuilder("ollama", subCommand);
-
             if (subCommand.equals("run") && args.length > 0) {
                 processBuilder.command().add(args[0].toString());
             }
@@ -115,7 +127,7 @@ public class OllamaCommandHandler {
             }
 
             errorThread.join();
-            if (!process.waitFor(30, TimeUnit.SECONDS)) {
+            if (!process.waitFor(60, TimeUnit.SECONDS)) {
                 source.sendFeedback(Text.translatable("command.ollama.error.timeout"));
                 process.destroy();
                 return;
