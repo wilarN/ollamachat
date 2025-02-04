@@ -15,5 +15,6 @@
   "command.ollama.status.model_set": "Active model set to: %s",
   "modmenu.nameTranslation.ollamachat": "Ollamachat",
   "modmenu.descriptionTranslation.ollamachat": "Chat with a locally deployed AI model from Ollama in Minecraft.",
-  "modmenu.afadian": "afadian"
+  "modmenu.afadian": "afadian",
+  "command.ollama.status.models_refreshed": "models refreshed"
 }

@@ -15,5 +15,6 @@
   "command.ollama.status.model_set": "已设置活动模型为: %s",
   "modmenu.nameTranslation.ollamachat": "ollamachat",
   "modmenu.descriptionTranslation.ollamachat": "在我的世界与本地ollama部署的ai模型对话",
-  "modmenu.afadian": "爱发电"
+  "modmenu.afadian": "爱发电",
+  "command.ollama.status.models_refreshed": "模型已刷新"
 }
