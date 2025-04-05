@@ -10,9 +10,12 @@ Empower Minecraft players to interact with locally deployed AI models through in
 - Conversation memory with configurable history limit
 - Database support (SQLite and MySQL)
 - Privacy controls with chat history deletion
-- End-to-end encryption for secure communication
+- At-rest encryption for secure message storage
 - Configurable AI model selection
 - Memory optimization for better performance
+- Works on both client and server installations
+- Individual player memory and conversation history
+- Automatic database cleanup and management
 
 ## Commands
 
@@ -27,10 +30,33 @@ The mod can be configured in `config/ollamachat.json`:
 
 ```json
 {
-  "ollamaEndpoint": "http://localhost:11434/api/generate",
+  "ollamaApiUrl": "http://localhost:11434/api/generate",
   "defaultModel": "llama3",
-  "memoryLimit": 10,
-  "memoryFormat": "Human: %s\nAssistant: %s",
+  "requireOpForCommands": true,
+  "opPermissionLevel": 4,
+  "aiCommandPrefix": "ai",
+  "enableChatPrefix": true,
+  "chatPrefix": "[AI]",
+  "maxResponseLength": 1000,
+  "stripHtmlTags": true,
+  "messageCooldown": 5,
+  "cooldownMessage": "Please wait %d seconds before sending another message to the AI.",
+  "enableMemory": true,
+  "memoryHistoryLimit": 5,
+  "memoryFormat": "User: {message}\nAssistant: {response}",
+  "maxContextTokens": 4096,
+  "maxMessageLength": 500,
+  "messageCompression": true,
+  "cleanupInterval": 3600,
+  "maxConversationAge": 604800,
+  "maxConversationsPerPlayer": 100,
+  "databaseType": "local",
+  "databaseHost": "localhost",
+  "databasePort": 3306,
+  "databaseName": "ollamachat",
+  "databaseUsername": "root",
+  "databasePassword": "",
+  "localDatabasePath": "data/ollamachat/conversations.db",
   "enableEncryption": true,
   "encryptionKey": ""
 }
@@ -38,19 +64,50 @@ The mod can be configured in `config/ollamachat.json`:
 
 ### Configuration Options
 
-- `ollamaEndpoint`: The endpoint URL for the Ollama API
+#### General Settings
+- `ollamaApiUrl`: The endpoint URL for the Ollama API
 - `defaultModel`: The default AI model to use
-- `memoryLimit`: Maximum number of conversation entries to remember
+- `requireOpForCommands`: Whether to require operator permissions for commands
+- `opPermissionLevel`: The permission level required for commands (if enabled)
+- `aiCommandPrefix`: The prefix for the AI chat command (default: "ai")
+- `enableChatPrefix`: Whether to add a prefix to AI responses
+- `chatPrefix`: The prefix to add to AI responses (if enabled)
+- `maxResponseLength`: Maximum length of AI responses (characters)
+- `stripHtmlTags`: Whether to remove HTML tags from AI responses
+- `messageCooldown`: Cooldown time between messages (seconds)
+- `cooldownMessage`: Message shown when cooldown is active (use %d for seconds)
+
+#### Memory Settings
+- `enableMemory`: Whether to enable conversation memory
+- `memoryHistoryLimit`: Maximum number of conversation entries to remember
 - `memoryFormat`: Format string for conversation memory
-- `enableEncryption`: Enable/disable end-to-end encryption
+- `maxContextTokens`: Maximum number of tokens to include in context
+- `maxMessageLength`: Maximum length of user messages (characters)
+- `messageCompression`: Whether to compress messages for memory optimization
+
+#### Database Settings
+- `cleanupInterval`: How often to clean up old messages (seconds)
+- `maxConversationAge`: Maximum age of conversations before deletion (seconds)
+- `maxConversationsPerPlayer`: Maximum number of conversations per player
+- `databaseType`: Database type ("local" for SQLite, "external" for MySQL)
+- `databaseHost`: MySQL database host (for external database)
+- `databasePort`: MySQL database port (for external database)
+- `databaseName`: MySQL database name (for external database)
+- `databaseUsername`: MySQL database username (for external database)
+- `databasePassword`: MySQL database password (for external database)
+- `localDatabasePath`: Path to the SQLite database file (for local database)
+
+#### Security Settings
+- `enableEncryption`: Enable/disable at-rest encryption
 - `encryptionKey`: Custom encryption key (leave empty for auto-generated key)
 
 ## Security
 
-The mod includes database encryption for all chat messages and AI responses. When encryption is enabled:
+The mod includes at-rest encryption for all chat messages and AI responses. When encryption is enabled:
 - All messages are encrypted before being stored in the database
 - Messages are decrypted only when displayed to the user
-- A unique encryption key is generated for each server
+- A unique encryption key is automatically generated for each server
+- The encryption key is saved to the configuration file and persists across server restarts
 - The encryption key can be customized in the configuration file
 
 Note: This is database encryption (at-rest encryption), not end-to-end encryption. The server can decrypt all messages. The encryption is primarily to protect against database breaches, not against server compromise.
