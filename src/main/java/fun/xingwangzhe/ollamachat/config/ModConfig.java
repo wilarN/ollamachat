@@ -116,20 +116,59 @@ public class ModConfig {
             .serializeNulls()
             .create();
     private static final String CONFIG_PATH = "config/ollamachat.json";
+    private static final String ALTERNATIVE_CONFIG_PATH = "../config/ollamachat.json";
+    private static final String SERVER_CONFIG_PATH = "./config/ollamachat.json";
 
     public static ModConfig load() {
         try {
-            Path configPath = Paths.get(CONFIG_PATH);
+            // Try the server config path first
+            Path configPath = Paths.get(SERVER_CONFIG_PATH);
+            System.out.println("Loading config from: " + configPath.toAbsolutePath());
+            
             if (!Files.exists(configPath)) {
-                ModConfig defaultConfig = new ModConfig();
-                defaultConfig.save();
-                return defaultConfig;
+                System.out.println("Config file not found at server location, trying default path");
+                // Try the default path
+                configPath = Paths.get(CONFIG_PATH);
+                System.out.println("Trying default path: " + configPath.toAbsolutePath());
+                
+                if (!Files.exists(configPath)) {
+                    System.out.println("Config file not found at default location, trying alternative path");
+                    // Try the alternative path
+                    configPath = Paths.get(ALTERNATIVE_CONFIG_PATH);
+                    System.out.println("Trying alternative path: " + configPath.toAbsolutePath());
+                    
+                    if (!Files.exists(configPath)) {
+                        System.out.println("Config file not found at alternative location, creating default config");
+                        ModConfig defaultConfig = new ModConfig();
+                        defaultConfig.save();
+                        return defaultConfig;
+                    }
+                }
+                
+                // If we found the config file in a different location, copy it to the server config path
+                if (Files.exists(configPath) && !Files.exists(Paths.get(SERVER_CONFIG_PATH))) {
+                    System.out.println("Copying config file to server location");
+                    try {
+                        Files.createDirectories(Paths.get(SERVER_CONFIG_PATH).getParent());
+                        Files.copy(configPath, Paths.get(SERVER_CONFIG_PATH), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        System.out.println("Config file copied to server location");
+                    } catch (IOException e) {
+                        System.err.println("Error copying config file to server location: " + e.getMessage());
+                    }
+                }
             }
 
             try (FileReader reader = new FileReader(configPath.toFile())) {
-                return GSON.fromJson(reader, ModConfig.class);
+                ModConfig config = GSON.fromJson(reader, ModConfig.class);
+                System.out.println("Loaded config with databaseType: " + config.databaseType);
+                System.out.println("Database configuration - Host: " + config.databaseHost + 
+                                  ", Port: " + config.databasePort + 
+                                  ", Name: " + config.databaseName + 
+                                  ", Username: " + config.databaseUsername);
+                return config;
             }
         } catch (IOException e) {
+            System.err.println("Error loading config: " + e.getMessage());
             e.printStackTrace();
             return new ModConfig();
         }
@@ -137,13 +176,48 @@ public class ModConfig {
 
     public void save() {
         try {
-            Path configPath = Paths.get(CONFIG_PATH);
-            Files.createDirectories(configPath.getParent());
+            // Try to save to the server config path first
+            Path configPath = Paths.get(SERVER_CONFIG_PATH);
+            System.out.println("Saving config to: " + configPath.toAbsolutePath());
             
-            try (FileWriter writer = new FileWriter(configPath.toFile())) {
-                GSON.toJson(this, writer);
+            try {
+                Files.createDirectories(configPath.getParent());
+                
+                try (FileWriter writer = new FileWriter(configPath.toFile())) {
+                    GSON.toJson(this, writer);
+                }
+                System.out.println("Config saved successfully to server location");
+            } catch (IOException e) {
+                System.err.println("Error saving config to server location: " + e.getMessage());
+                
+                // Try the default path
+                configPath = Paths.get(CONFIG_PATH);
+                System.out.println("Trying to save to default path: " + configPath.toAbsolutePath());
+                
+                try {
+                    Files.createDirectories(configPath.getParent());
+                    
+                    try (FileWriter writer = new FileWriter(configPath.toFile())) {
+                        GSON.toJson(this, writer);
+                    }
+                    System.out.println("Config saved successfully to default location");
+                } catch (IOException e2) {
+                    System.err.println("Error saving config to default location: " + e2.getMessage());
+                    
+                    // Try the alternative path
+                    configPath = Paths.get(ALTERNATIVE_CONFIG_PATH);
+                    System.out.println("Trying to save to alternative path: " + configPath.toAbsolutePath());
+                    
+                    Files.createDirectories(configPath.getParent());
+                    
+                    try (FileWriter writer = new FileWriter(configPath.toFile())) {
+                        GSON.toJson(this, writer);
+                    }
+                    System.out.println("Config saved successfully to alternative location");
+                }
             }
         } catch (IOException e) {
+            System.err.println("Error saving config: " + e.getMessage());
             e.printStackTrace();
         }
     }

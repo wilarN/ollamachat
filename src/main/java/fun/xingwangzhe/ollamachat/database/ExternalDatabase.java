@@ -7,23 +7,76 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ExternalDatabase implements Database {
+    private static final Logger LOGGER = LoggerFactory.getLogger("OllamaChat");
     private final Connection connection;
     private final ModConfig config;
     private final MemoryOptimizer memoryOptimizer;
+    
+    // TODO: Future optimization - Implement connection pooling for better performance
+    // This would allow reusing connections instead of keeping a single connection open
 
     public ExternalDatabase(ModConfig config) throws SQLException {
         this.config = config;
         this.memoryOptimizer = new MemoryOptimizer(config);
-        String url = String.format("jdbc:mysql://%s:%d/%s", 
+        
+        LOGGER.info("Initializing ExternalDatabase with host: {}, port: {}, database: {}, username: {}", 
+            config.databaseHost, config.databasePort, config.databaseName, config.databaseUsername);
+        
+        // Explicitly load the MySQL driver
+        try {
+            LOGGER.info("Loading MySQL driver");
+            // Try multiple driver class names
+            String[] driverClassNames = {
+                "com.mysql.cj.jdbc.Driver",
+                "com.mysql.jdbc.Driver",
+                "fun.xingwangzhe.ollamachat.shadow.mysql.cj.jdbc.Driver",
+                "fun.xingwangzhe.ollamachat.shadow.mysql.jdbc.Driver"
+            };
+            
+            boolean driverLoaded = false;
+            for (String driverClassName : driverClassNames) {
+                try {
+                    LOGGER.info("Trying to load driver: {}", driverClassName);
+                    Class.forName(driverClassName);
+                    LOGGER.info("MySQL driver loaded successfully: {}", driverClassName);
+                    driverLoaded = true;
+                    break;
+                } catch (ClassNotFoundException e) {
+                    LOGGER.warn("Driver not found: {}", driverClassName);
+                }
+            }
+            
+            if (!driverLoaded) {
+                throw new ClassNotFoundException("No MySQL driver found");
+            }
+        } catch (ClassNotFoundException e) {
+            LOGGER.error("MySQL driver not found: {}", e.getMessage());
+            throw new SQLException("MySQL driver not found", e);
+        }
+        
+        String url = String.format("jdbc:mysql://%s:%d/%s?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&connectTimeout=10000&socketTimeout=30000", 
             config.databaseHost, 
             config.databasePort, 
             config.databaseName);
-        connection = DriverManager.getConnection(url, config.databaseUsername, config.databasePassword);
+            
+        LOGGER.info("Connecting to MySQL database at: {}", url);
+        
+        try {
+            connection = DriverManager.getConnection(url, config.databaseUsername, config.databasePassword);
+            LOGGER.info("Successfully connected to MySQL database");
+        } catch (SQLException e) {
+            LOGGER.error("Failed to connect to MySQL database: {}", e.getMessage());
+            LOGGER.error("SQL State: {}, Error Code: {}", e.getSQLState(), e.getErrorCode());
+            throw e;
+        }
         
         // Create tables if they don't exist
         try (Statement stmt = connection.createStatement()) {
+            LOGGER.info("Creating tables if they don't exist");
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS conversations (
                     id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -36,6 +89,10 @@ public class ExternalDatabase implements Database {
                     INDEX idx_last_access (last_access)
                 )
             """);
+            LOGGER.info("Tables created successfully");
+        } catch (SQLException e) {
+            LOGGER.error("Failed to create tables: {}", e.getMessage());
+            throw e;
         }
     }
 

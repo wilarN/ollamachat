@@ -31,6 +31,8 @@ import java.util.stream.Collectors;
 import net.minecraft.util.Formatting;
 import java.util.concurrent.CompletableFuture;
 import java.sql.SQLException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class OllamachatServer implements DedicatedServerModInitializer {
     private static final HttpClient httpClient = HttpClient.newHttpClient();
@@ -40,6 +42,7 @@ public class OllamachatServer implements DedicatedServerModInitializer {
     private static Database database;
     private static final int CONTEXT_HISTORY_LIMIT = 5; // Number of previous messages to include as context
     private static MessageCooldownManager cooldownManager;
+    private static final Logger LOGGER = LoggerFactory.getLogger(OllamachatServer.class);
 
     @Override
     public void onInitializeServer() {
@@ -51,12 +54,27 @@ public class OllamachatServer implements DedicatedServerModInitializer {
         
         // Initialize database
         try {
-            if ("external".equals(config.databaseType)) {
-                database = new ExternalDatabase(config);
+            LOGGER.info("Database type from config: {}", config.databaseType);
+            LOGGER.info("Database configuration - Host: {}, Port: {}, Name: {}, Username: {}", 
+                config.databaseHost, config.databasePort, config.databaseName, config.databaseUsername);
+            
+            // Check if the database type is "external" (case-insensitive)
+            if ("external".equalsIgnoreCase(config.databaseType)) {
+                LOGGER.info("Using external database");
+                try {
+                    database = new ExternalDatabase(config);
+                    LOGGER.info("External database initialized successfully");
+                } catch (SQLException e) {
+                    LOGGER.error("Failed to initialize external database: {}", e.getMessage());
+                    LOGGER.error("Falling back to local database");
+                    database = new LocalDatabase(config);
+                }
             } else {
+                LOGGER.info("Using local database");
                 database = new LocalDatabase(config);
             }
         } catch (SQLException e) {
+            LOGGER.error("Failed to initialize database: {}", e.getMessage());
             e.printStackTrace();
             // Fallback to in-memory database or handle the error appropriately
             throw new RuntimeException("Failed to initialize database", e);
