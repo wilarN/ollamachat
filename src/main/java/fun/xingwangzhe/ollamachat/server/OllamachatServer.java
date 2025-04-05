@@ -152,6 +152,31 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                             .formatted(Formatting.YELLOW));
                                     return 1;
                                 }))
+                        .then(literal("reload")
+                                .executes(context -> {
+                                    ServerCommandSource source = context.getSource();
+                                    
+                                    // Reload the configuration
+                                    config = ModConfig.load();
+                                    
+                                    // Reinitialize encryption
+                                    EncryptionManager.initialize(config);
+                                    
+                                    // Update the current model
+                                    currentModel = config.defaultModel;
+                                    
+                                    // Reinitialize the cooldown manager
+                                    cooldownManager = new MessageCooldownManager(config);
+                                    
+                                    // Send confirmation message
+                                    source.sendMessage(Text.literal("OllamaChat configuration reloaded successfully!")
+                                            .formatted(Formatting.GREEN));
+                                    
+                                    // Log the reload
+                                    LOGGER.info("OllamaChat configuration reloaded by {}", source.getName());
+                                    
+                                    return 1;
+                                }))
                 );
 
                 // Register the AI command with custom prefix from config
@@ -160,6 +185,7 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                 .executes(context -> {
                                     ServerCommandSource source = context.getSource();
                                     UUID playerId = source.getPlayer().getUuid();
+                                    String playerName = source.getPlayer().getName().getString();
                                     
                                     // Check cooldown
                                     if (!cooldownManager.canSendMessage(playerId)) {
@@ -171,47 +197,65 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                     // Get the message from the argument
                                     String message = StringArgumentType.getString(context, "message");
                                     
+                                    // Get the AI name from config
+                                    String aiName = config.aiCommandPrefix;
+                                    
+                                    // Broadcast the player's message to all players with the new format
+                                    Text playerMessage = Text.literal(playerName)
+                                            .formatted(Formatting.GREEN)
+                                            .append(Text.literal(" >> "))
+                                            .append(Text.literal(aiName)
+                                                    .formatted(getFormattingFromString(config.prefixColor)))
+                                            .append(Text.literal(": "))
+                                            .append(Text.literal(message)
+                                                    .formatted(Formatting.WHITE));
+                                    server.getPlayerManager().broadcast(playerMessage, false);
+                                    
+                                    // Add username to the message for the AI
+                                    String messageWithUsername = playerName + ": " + message;
+                                    
                                     // Send message to AI
                                     CompletableFuture.runAsync(() -> {
                                         try {
                                             // Get conversation history if memory is enabled
                                             String conversationContext = "";
                                             if (config.enableMemory) {
-                                                var history = database.getRecentConversations(playerId, config.memoryHistoryLimit);
+                                                // For public chat, use "ALL" as the player ID to get global history
+                                                var history = database.getRecentConversations(UUID.fromString("00000000-0000-0000-0000-000000000000"), config.memoryHistoryLimit);
                                                 conversationContext = String.join("\n", history);
                                             }
                                             
                                             // Process message and get response
-                                            String response = handleAIRequest(source, message);
+                                            String response = handleAIRequest(source, messageWithUsername, false);
                                             
                                             // Update cooldown
                                             cooldownManager.updateLastMessageTime(playerId);
                                             
                                             // Save to database if memory is enabled
                                             if (config.enableMemory) {
-                                                database.addMessage(playerId, message, response);
+                                                // For public chat, use "ALL" as the player ID to save global history
+                                                database.addMessage(UUID.fromString("00000000-0000-0000-0000-000000000000"), messageWithUsername, response);
                                             }
                                             
-                                            // Send response to player
+                                            // Send response to all players with the new format
                                             source.getServer().execute(() -> {
-                                                String formattedResponse = config.enableChatPrefix 
-                                                    ? config.chatPrefix + " " + response 
-                                                    : response;
-                                                
                                                 // Create a colorful text with the AI response
                                                 Text colorfulText;
                                                 if (config.enableChatPrefix) {
-                                                    // Split the prefix and response
-                                                    String prefix = config.chatPrefix;
+                                                    // Get the AI name from config
+                                                    String aiNameForResponse = config.aiCommandPrefix;
                                                     
-                                                    // Get the formatting for the prefix and response
-                                                    Formatting prefixFormatting = getFormattingFromString(config.prefixColor);
+                                                    // Get the formatting for the AI name and response
+                                                    Formatting aiNameFormatting = getFormattingFromString(config.prefixColor);
                                                     Formatting responseFormatting = getFormattingFromString(config.responseColor);
                                                     
-                                                    // Create a colorful text with the prefix and response
-                                                    colorfulText = Text.literal(prefix)
-                                                            .formatted(prefixFormatting)
-                                                            .append(Text.literal(" "))
+                                                    // Create a colorful text with the AI name and response
+                                                    colorfulText = Text.literal(aiNameForResponse)
+                                                            .formatted(aiNameFormatting)
+                                                            .append(Text.literal(" >> "))
+                                                            .append(Text.literal(playerName)
+                                                                    .formatted(Formatting.GREEN))
+                                                            .append(Text.literal(": "))
                                                             .append(Text.literal(response)
                                                                     .formatted(responseFormatting));
                                                 } else {
@@ -221,6 +265,186 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                                             .formatted(responseFormatting);
                                                 }
                                                 
+                                                // Broadcast the AI response to all players
+                                                server.getPlayerManager().broadcast(colorfulText, false);
+                                            });
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
+                                            source.getServer().execute(() -> {
+                                                source.sendMessage(Text.literal("An error occurred while processing your message.")
+                                                        .formatted(Formatting.RED));
+                                            });
+                                        }
+                                    });
+                                    
+                                    return 1;
+                                }))
+                        .then(literal("clear")
+                                .executes(context -> {
+                                    ServerCommandSource source = context.getSource();
+                                    UUID playerId = source.getPlayer().getUuid();
+                                    
+                                    // Delete the player's chat history
+                                    try {
+                                        database.deletePlayerHistory(playerId);
+                                        source.sendMessage(Text.literal("Your chat history has been cleared.")
+                                                .formatted(Formatting.GREEN));
+                                        return 1;
+                                    } catch (Exception e) {
+                                        e.printStackTrace();
+                                        source.sendMessage(Text.literal("Error clearing chat history: ")
+                                                .formatted(Formatting.RED)
+                                                .append(Text.literal(e.getMessage())
+                                                        .formatted(Formatting.RED)));
+                                        return 0;
+                                    }
+                                }))
+                        .then(literal("help")
+                                .executes(context -> {
+                                    ServerCommandSource source = context.getSource();
+                                    
+                                    // Get the AI name from config
+                                    String aiName = config.aiCommandPrefix;
+                                    String privatePrefix = "p" + config.aiCommandPrefix;
+                                    
+                                    // Get the formatting for the AI name
+                                    Formatting aiNameFormatting = getFormattingFromString(config.prefixColor);
+                                    
+                                    // Send comprehensive help information
+                                    source.sendMessage(Text.literal("=== OllamaChat Help ===")
+                                            .formatted(Formatting.GOLD, Formatting.BOLD));
+                                    
+                                    // Basic commands
+                                    source.sendMessage(Text.literal("Basic Commands:")
+                                            .formatted(Formatting.YELLOW, Formatting.BOLD));
+                                    source.sendMessage(Text.literal("/" + aiName + " <message>")
+                                            .formatted(Formatting.YELLOW)
+                                            .append(Text.literal(" - Chat with the AI in public chat (visible to all players)")
+                                                    .formatted(Formatting.WHITE)));
+                                    source.sendMessage(Text.literal("/" + privatePrefix + " <message>")
+                                            .formatted(Formatting.YELLOW)
+                                            .append(Text.literal(" - Chat with the AI in private chat (visible only to you)")
+                                                    .formatted(Formatting.WHITE)));
+                                    source.sendMessage(Text.literal("/" + aiName + " clear")
+                                            .formatted(Formatting.YELLOW)
+                                            .append(Text.literal(" - Clear your chat history")
+                                                    .formatted(Formatting.WHITE)));
+                                    
+                                    // Features
+                                    source.sendMessage(Text.literal("\nFeatures:")
+                                            .formatted(Formatting.YELLOW, Formatting.BOLD));
+                                    source.sendMessage(Text.literal("• Public Chat: ")
+                                            .formatted(Formatting.WHITE)
+                                            .append(Text.literal("Messages are visible to all players and saved in a shared history")
+                                                    .formatted(Formatting.WHITE)));
+                                    source.sendMessage(Text.literal("• Private Chat: ")
+                                            .formatted(Formatting.WHITE)
+                                            .append(Text.literal("Messages are visible only to you and saved in your personal history")
+                                                    .formatted(Formatting.WHITE)));
+                                    source.sendMessage(Text.literal("• Memory: ")
+                                            .formatted(Formatting.WHITE)
+                                            .append(Text.literal(config.enableMemory ? "Enabled" : "Disabled")
+                                                    .formatted(config.enableMemory ? Formatting.GREEN : Formatting.RED))
+                                            .append(Text.literal(" - The AI remembers previous conversations")
+                                                    .formatted(Formatting.WHITE)));
+                                    source.sendMessage(Text.literal("• Cooldown: ")
+                                            .formatted(Formatting.WHITE)
+                                            .append(Text.literal(config.messageCooldown + " seconds")
+                                                    .formatted(Formatting.GREEN))
+                                            .append(Text.literal(" between messages")
+                                                    .formatted(Formatting.WHITE)));
+                                    
+                                    return 1;
+                                }))
+                );
+
+                // Register the private AI command with custom prefix from config
+                dispatcher.register(literal("p" + config.aiCommandPrefix)
+                        .then(argument("message", StringArgumentType.greedyString())
+                                .executes(context -> {
+                                    ServerCommandSource source = context.getSource();
+                                    UUID playerId = source.getPlayer().getUuid();
+                                    String playerName = source.getPlayer().getName().getString();
+                                    
+                                    // Check cooldown
+                                    if (!cooldownManager.canSendMessage(playerId)) {
+                                        source.sendMessage(Text.literal(cooldownManager.getCooldownMessage(playerId))
+                                                .formatted(Formatting.RED));
+                                        return 1;
+                                    }
+                                    
+                                    // Get the message from the argument
+                                    String message = StringArgumentType.getString(context, "message");
+                                    
+                                    // Get the AI name from config
+                                    String aiName = config.aiCommandPrefix;
+                                    
+                                    // Send private message to the player with the new format
+                                    Text playerMessage = Text.literal(playerName)
+                                            .formatted(Formatting.GREEN)
+                                            .append(Text.literal(" >> "))
+                                            .append(Text.literal(aiName)
+                                                    .formatted(getFormattingFromString(config.prefixColor)))
+                                            .append(Text.literal(": "))
+                                            .append(Text.literal(message)
+                                                    .formatted(Formatting.WHITE));
+                                    source.sendMessage(playerMessage);
+                                    
+                                    // Add username to the message for the AI
+                                    String messageWithUsername = playerName + ": " + message;
+                                    
+                                    // Send message to AI
+                                    CompletableFuture.runAsync(() -> {
+                                        try {
+                                            // Get conversation history if memory is enabled
+                                            String conversationContext = "";
+                                            if (config.enableMemory) {
+                                                // For private chat, use the player's actual UUID
+                                                var history = database.getRecentConversations(playerId, config.memoryHistoryLimit);
+                                                conversationContext = String.join("\n", history);
+                                            }
+                                            
+                                            // Process message and get response
+                                            String response = handleAIRequest(source, messageWithUsername, true);
+                                            
+                                            // Update cooldown
+                                            cooldownManager.updateLastMessageTime(playerId);
+                                            
+                                            // Save to database if memory is enabled
+                                            if (config.enableMemory) {
+                                                // For private chat, use the player's actual UUID
+                                                database.addMessage(playerId, messageWithUsername, response);
+                                            }
+                                            
+                                            // Send response to player (private) with the new format
+                                            source.getServer().execute(() -> {
+                                                // Create a colorful text with the AI response
+                                                Text colorfulText;
+                                                if (config.enableChatPrefix) {
+                                                    // Get the AI name from config
+                                                    String aiNameForPrivateResponse = config.aiCommandPrefix;
+                                                    
+                                                    // Get the formatting for the AI name and response
+                                                    Formatting aiNameFormatting = getFormattingFromString(config.prefixColor);
+                                                    Formatting responseFormatting = getFormattingFromString(config.privateResponseColor);
+                                                    
+                                                    // Create a colorful text with the AI name and response
+                                                    colorfulText = Text.literal(aiNameForPrivateResponse)
+                                                            .formatted(aiNameFormatting)
+                                                            .append(Text.literal(" >> "))
+                                                            .append(Text.literal(playerName)
+                                                                    .formatted(Formatting.GREEN))
+                                                            .append(Text.literal(": "))
+                                                            .append(Text.literal(response)
+                                                                    .formatted(responseFormatting));
+                                                } else {
+                                                    // Just color the response
+                                                    Formatting responseFormatting = getFormattingFromString(config.privateResponseColor);
+                                                    colorfulText = Text.literal(response)
+                                                            .formatted(responseFormatting);
+                                                }
+                                                
+                                                // Send private message to the player
                                                 source.sendMessage(colorfulText);
                                             });
                                         } catch (Exception e) {
@@ -262,11 +486,11 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                     .formatted(Formatting.GOLD, Formatting.BOLD));
                             context.getSource().sendMessage(Text.literal("/ollama list")
                                     .formatted(Formatting.YELLOW)
-                                    .append(Text.literal(" - List available models")
+                                    .append(Text.literal(" - List available AI models")
                                             .formatted(Formatting.WHITE)));
-                            context.getSource().sendMessage(Text.literal("/ollama model name <modelname>")
+                            context.getSource().sendMessage(Text.literal("/ollama model <modelname>")
                                     .formatted(Formatting.YELLOW)
-                                    .append(Text.literal(" - Set the model to use")
+                                    .append(Text.literal(" - Set the AI model to use")
                                             .formatted(Formatting.WHITE)));
                             context.getSource().sendMessage(Text.literal("/ollama history <limit>")
                                     .formatted(Formatting.YELLOW)
@@ -278,7 +502,11 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                             .formatted(Formatting.WHITE)));
                             context.getSource().sendMessage(Text.literal("/" + config.aiCommandPrefix + " <message>")
                                     .formatted(Formatting.YELLOW)
-                                    .append(Text.literal(" - Chat with the AI")
+                                    .append(Text.literal(" - Chat with the AI (public)")
+                                            .formatted(Formatting.WHITE)));
+                            context.getSource().sendMessage(Text.literal("/p" + config.aiCommandPrefix + " <message>")
+                                    .formatted(Formatting.YELLOW)
+                                    .append(Text.literal(" - Chat with the AI (private)")
                                             .formatted(Formatting.WHITE)));
                             context.getSource().sendMessage(Text.literal("/" + config.aiCommandPrefix + " clear")
                                     .formatted(Formatting.YELLOW)
@@ -290,24 +518,48 @@ public class OllamachatServer implements DedicatedServerModInitializer {
         });
     }
 
-    private String handleAIRequest(ServerCommandSource source, String message) {
+    private String handleAIRequest(ServerCommandSource source, String message, boolean isPrivate) {
         try {
             UUID playerId = source.getPlayer().getUuid();
+            String playerName = source.getPlayer().getName().getString();
             
             // Get conversation history for context if memory is enabled
             String prompt;
             if (config.enableMemory) {
-                List<ConversationEntry> history = database.getConversationHistory(playerId, config.memoryHistoryLimit);
-                String context = history.stream()
-                        .map(entry -> config.memoryFormat
-                                .replace("{message}", entry.getMessage())
-                                .replace("{response}", entry.getResponse()))
-                        .collect(Collectors.joining("\n\n"));
+                List<ConversationEntry> history;
                 
-                prompt = context.isEmpty() ? message : 
-                    "Previous conversation:\n" + context + "\n\nCurrent message: " + message;
+                if (isPrivate) {
+                    // For private chat, use the player's actual UUID
+                    history = database.getConversationHistory(playerId, config.memoryHistoryLimit);
+                } else {
+                    // For public chat, use "ALL" as the player ID to get global history
+                    history = database.getConversationHistory(UUID.fromString("00000000-0000-0000-0000-000000000000"), config.memoryHistoryLimit);
+                }
+                
+                // Create a more explicit context that clearly shows who said what
+                StringBuilder contextBuilder = new StringBuilder();
+                
+                if (!history.isEmpty()) {
+                    contextBuilder.append("Previous conversation:\n");
+                    
+                    for (ConversationEntry entry : history) {
+                        // Extract username from the message if it's in the format "username: message"
+                        String messageText = entry.getMessage();
+                        String responseText = entry.getResponse();
+                        
+                        // Format each message to clearly show who said what
+                        contextBuilder.append(messageText).append("\n");
+                        contextBuilder.append("AI: ").append(responseText).append("\n\n");
+                    }
+                }
+                
+                // Add the current message with clear indication of who is speaking
+                contextBuilder.append("Current message from ").append(playerName).append(": ").append(message);
+                
+                prompt = contextBuilder.toString();
             } else {
-                prompt = message;
+                // If memory is disabled, still include the username in the message
+                prompt = "Message from " + playerName + ": " + message;
             }
 
             JsonObject requestBody = new JsonObject();
@@ -334,9 +586,6 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                     if (aiResponse.length() > config.maxResponseLength) {
                         aiResponse = aiResponse.substring(0, config.maxResponseLength) + "...";
                     }
-                    
-                    // Don't encrypt the response here - we want to display clear text to the player
-                    // The response will be encrypted when saved to the database
                     
                     return aiResponse;
                 } else {

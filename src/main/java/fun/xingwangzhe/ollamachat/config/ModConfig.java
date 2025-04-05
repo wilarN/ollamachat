@@ -46,6 +46,12 @@ public class ModConfig {
     @SerializedName("responseColor") // The color to use for the AI response
     public String responseColor = "aqua";
     
+    @SerializedName("privateChatPrefix") // The prefix for private chat commands
+    public String privateChatPrefix = "pai";
+    
+    @SerializedName("privateResponseColor") // The color to use for private AI responses
+    public String privateResponseColor = "light_purple";
+    
     @SerializedName("maxResponseLength") // Maximum length of AI responses (characters)
     public int maxResponseLength = 1000;
     

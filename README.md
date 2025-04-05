@@ -7,7 +7,8 @@ Empower Minecraft players to interact with locally deployed AI models through in
 
 ## Features
 
-- Chat with AI using `/ai <message>` command
+- Chat with AI using `/[aiCommandPrefix] <message>` command in public chat
+- Private chat with AI using `/p[aiCommandPrefix] <message>` command (only visible to you)
 - Conversation memory with configurable history limit
 - Database support (SQLite and MySQL)
 - Privacy controls with chat history deletion
@@ -17,13 +18,21 @@ Empower Minecraft players to interact with locally deployed AI models through in
 - Works on both client and server installations
 - Individual player memory and conversation history
 - Automatic database cleanup and management
+- Help command to display mod information
 
 ## Commands
 
+### User Commands
+- `/[aiCommandPrefix] <message>` - Chat with the AI in public chat
+- `/p[aiCommandPrefix] <message>` - Chat with the AI in private chat (only visible to you)
+- `/[aiCommandPrefix] clear` - Delete your chat history
+- `/[aiCommandPrefix] help` - Show help information about the mod
+
+### Admin Commands
 - `/ollama model <modelname>` - Set the model to use
 - `/ollama history <limit>` - Show conversation history
-- `/ai <message>` - Chat with the AI
-- `/ai clear` - Delete your chat history
+- `/ollama list` - List all available models
+- `/ollama reload` - Reload the mod configuration
 
 ## Configuration
 
@@ -165,18 +174,27 @@ The encryption system uses AES encryption with a random initialization vector (I
    `/ollama model llama3`
    *Switch to the "llama3" model.*
 
-2. **Send Request**
+2. **Public Chat**
    Type in chat:
-   `ai How to build a house in Minecraft?`
-   The AI will respond with an answer in-game.
+   `/[aiCommandPrefix] How to build a house in Minecraft?`
+   The AI will respond with an answer in-game, visible to all players.
 
-3. **View History**
+3. **Private Chat**
+   Type in chat:
+   `/p[aiCommandPrefix] What's the best way to find diamonds?`
+   The AI will respond with an answer in-game, visible only to you.
+
+4. **View History**
    `/ollama history 5`
    *View your 5 most recent conversations.*
 
-4. **Clear History**
-   `/ai clear`
+5. **Clear History**
+   `/[aiCommandPrefix] clear`
    *Delete all your conversation history for privacy.*
+
+6. **Show Help**
+   `/[aiCommandPrefix] help`
+   *Display information about the mod's features and commands.*
 
 ---
 
