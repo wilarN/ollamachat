@@ -6,6 +6,7 @@ import fun.xingwangzhe.ollamachat.database.Database;
 import fun.xingwangzhe.ollamachat.database.LocalDatabase;
 import fun.xingwangzhe.ollamachat.database.ExternalDatabase;
 import fun.xingwangzhe.ollamachat.database.ConversationEntry;
+import fun.xingwangzhe.ollamachat.database.DummyDatabase;
 import fun.xingwangzhe.ollamachat.security.EncryptionManager;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -65,13 +66,40 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                     database = new ExternalDatabase(config);
                     LOGGER.info("External database initialized successfully");
                 } catch (SQLException e) {
-                    LOGGER.error("Failed to initialize external database: {}", e.getMessage());
-                    LOGGER.error("Falling back to local database");
-                    database = new LocalDatabase(config);
+                    if (e.getMessage().contains("MySQL driver not found")) {
+                        LOGGER.error("MySQL driver not found. Please install Kosmolot's MySQL mod: https://modrinth.com/mod/kosmolot-mysql");
+                        LOGGER.error("Falling back to local database");
+                    } else {
+                        LOGGER.error("Failed to initialize external database: {}", e.getMessage());
+                        LOGGER.error("Falling back to local database");
+                    }
+                    try {
+                        database = new LocalDatabase(config);
+                    } catch (SQLException sqliteException) {
+                        if (sqliteException.getMessage().contains("SQLite driver not found")) {
+                            LOGGER.error("SQLite driver not found. Please install Kosmolot's SQLite mod: https://modrinth.com/mod/kosmolot-sqlite");
+                            LOGGER.error("Database initialization failed. The mod will continue without database support.");
+                            // Create a dummy database implementation that does nothing
+                            database = new DummyDatabase();
+                        } else {
+                            throw sqliteException;
+                        }
+                    }
                 }
             } else {
                 LOGGER.info("Using local database");
-                database = new LocalDatabase(config);
+                try {
+                    database = new LocalDatabase(config);
+                } catch (SQLException e) {
+                    if (e.getMessage().contains("SQLite driver not found")) {
+                        LOGGER.error("SQLite driver not found. Please install Kosmolot's SQLite mod: https://modrinth.com/mod/kosmolot-sqlite");
+                        LOGGER.error("Database initialization failed. The mod will continue without database support.");
+                        // Create a dummy database implementation that does nothing
+                        database = new DummyDatabase();
+                    } else {
+                        throw e;
+                    }
+                }
             }
         } catch (SQLException e) {
             LOGGER.error("Failed to initialize database: {}", e.getMessage());
@@ -176,6 +204,36 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                     LOGGER.info("OllamaChat configuration reloaded by {}", source.getName());
                                     
                                     return 1;
+                                }))
+                        .then(literal("clearall")
+                                .executes(context -> {
+                                    ServerCommandSource source = context.getSource();
+                                    
+                                    // Check if the user has permission
+                                    if (!source.hasPermissionLevel(config.opPermissionLevel)) {
+                                        source.sendMessage(Text.literal("You don't have permission to use this command.")
+                                                .formatted(Formatting.RED));
+                                        return 0;
+                                    }
+                                    
+                                    // Delete all chat history
+                                    try {
+                                        database.deleteAllHistory();
+                                        source.sendMessage(Text.literal("All chat history has been cleared successfully!")
+                                                .formatted(Formatting.GREEN));
+                                        
+                                        // Log the action
+                                        LOGGER.info("All chat history cleared by {}", source.getName());
+                                        
+                                        return 1;
+                                    } catch (Exception e) {
+                                        LOGGER.error("Failed to clear all chat history: {}", e.getMessage());
+                                        source.sendMessage(Text.literal("Failed to clear all chat history: ")
+                                                .formatted(Formatting.RED)
+                                                .append(Text.literal(e.getMessage())
+                                                        .formatted(Formatting.RED)));
+                                        return 0;
+                                    }
                                 }))
                 );
 
@@ -499,6 +557,10 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                             context.getSource().sendMessage(Text.literal("/ollama clear")
                                     .formatted(Formatting.YELLOW)
                                     .append(Text.literal(" - Delete your chat history")
+                                            .formatted(Formatting.WHITE)));
+                            context.getSource().sendMessage(Text.literal("/ollama clearall")
+                                    .formatted(Formatting.YELLOW)
+                                    .append(Text.literal(" - Delete all chat history (admin only)")
                                             .formatted(Formatting.WHITE)));
                             context.getSource().sendMessage(Text.literal("/" + config.aiCommandPrefix + " <message>")
                                     .formatted(Formatting.YELLOW)

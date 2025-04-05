@@ -29,10 +29,12 @@ Empower Minecraft players to interact with locally deployed AI models through in
 - `/[aiCommandPrefix] help` - Show help information about the mod
 
 ### Admin Commands
-- `/ollama model <modelname>` - Set the model to use
+- `/ollama list` - List available AI models
+- `/ollama model <modelname>` - Set the AI model to use
 - `/ollama history <limit>` - Show conversation history
-- `/ollama list` - List all available models
-- `/ollama reload` - Reload the mod configuration
+- `/ollama clear` - Delete your chat history
+- `/ollama clearall` - Delete all chat history (admin only)
+- `/ollama reload` - Reload the configuration
 
 ## Configuration
 
@@ -137,6 +139,16 @@ The encryption system uses AES encryption with a random initialization vector (I
 - **Must have [Ollama](https://ollama.ai/) installed locally** with at least one model deployed.
 - Run `ollama serve` in your terminal to start the local service.
 - Download models using `ollama pull <model-name>` (e.g., `llama3`).
+
+### ⚠️ Database Dependencies (Important!)
+If you plan to use the database features of this mod, you **must** install one of the following mods:
+
+- **For SQLite database support**: [Kosmolot's SQLite mod](https://modrinth.com/mod/kosmolot-sqlite)
+- **For MySQL/MariaDB database support**: [Kosmolot's MySQL mod](https://modrinth.com/mod/kosmolot-mysql)
+
+These mods provide the necessary database connectors that work with both Fabric and Forge.
+
+> **Note**: If you don't install the required database mod, you'll see an error message like "MySQL driver not found" or "SQLite driver not found" when the mod tries to connect to the database. The mod will continue to work without database support, but conversation history will not be saved.
 
 ---
 

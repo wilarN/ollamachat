@@ -52,11 +52,13 @@ public class ExternalDatabase implements Database {
             }
             
             if (!driverLoaded) {
-                throw new ClassNotFoundException("No MySQL driver found");
+                LOGGER.error("MySQL driver not found. Please install Kosmolot's MySQL mod: https://modrinth.com/mod/kosmolot-mysql");
+                throw new ClassNotFoundException("No MySQL driver found. Please install Kosmolot's MySQL mod: https://modrinth.com/mod/kosmolot-mysql");
             }
         } catch (ClassNotFoundException e) {
             LOGGER.error("MySQL driver not found: {}", e.getMessage());
-            throw new SQLException("MySQL driver not found", e);
+            LOGGER.error("To use MySQL database, you must install Kosmolot's MySQL mod: https://modrinth.com/mod/kosmolot-mysql");
+            throw new SQLException("MySQL driver not found. Please install Kosmolot's MySQL mod: https://modrinth.com/mod/kosmolot-mysql", e);
         }
         
         String url = String.format("jdbc:mysql://%s:%d/%s?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&connectTimeout=10000&socketTimeout=30000", 
@@ -255,6 +257,16 @@ public class ExternalDatabase implements Database {
         } catch (SQLException e) {
             e.printStackTrace();
             throw new RuntimeException("Failed to delete player history", e);
+        }
+    }
+
+    @Override
+    public void deleteAllHistory() {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate("DELETE FROM conversations");
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new RuntimeException("Failed to delete all history", e);
         }
     }
 

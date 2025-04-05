@@ -24,7 +24,15 @@ public class LocalDatabase implements Database {
         dbFile.getParentFile().mkdirs();
         
         // Connect to SQLite database
-        connection = DriverManager.getConnection("jdbc:sqlite:" + config.localDatabasePath);
+        try {
+            connection = DriverManager.getConnection("jdbc:sqlite:" + config.localDatabasePath);
+        } catch (SQLException e) {
+            if (e.getMessage().contains("No suitable driver")) {
+                System.err.println("SQLite driver not found. Please install Kosmolot's SQLite mod: https://modrinth.com/mod/kosmolot-sqlite");
+                throw new SQLException("SQLite driver not found. Please install Kosmolot's SQLite mod: https://modrinth.com/mod/kosmolot-sqlite", e);
+            }
+            throw e;
+        }
         
         // Check if the database is new or needs schema update
         boolean isNewDatabase = !dbFile.exists() || dbFile.length() == 0;
@@ -197,6 +205,16 @@ public class LocalDatabase implements Database {
         } catch (SQLException e) {
             e.printStackTrace();
             throw new RuntimeException("Failed to delete player history", e);
+        }
+    }
+
+    @Override
+    public void deleteAllHistory() {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate("DELETE FROM conversations");
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new RuntimeException("Failed to delete all history", e);
         }
     }
 

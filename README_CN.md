@@ -17,6 +17,16 @@
 * 在命令行中运行 `ollama serve` 启动本地服务。
 * 使用 `ollama pull <模型名>` 下载所需模型（如 `llama3`）。
 
+### ⚠️ 数据库依赖（重要！）
+如果您计划使用本模组的数据库功能，您**必须**安装以下模组之一：
+
+- **SQLite 数据库支持**: [Kosmolot's SQLite 模组](https://modrinth.com/mod/kosmolot-sqlite)
+- **MySQL/MariaDB 数据库支持**: [Kosmolot's MySQL 模组](https://modrinth.com/mod/kosmolot-mysql)
+
+这些模组提供了必要的数据库连接器，同时支持 Fabric 和 Forge。
+
+> **注意**: 如果您不安装所需的数据库模组，当模组尝试连接到数据库时，您会看到类似 "MySQL driver not found" 或 "SQLite driver not found" 的错误消息。模组将继续在没有数据库支持的情况下工作，但对话历史记录不会被保存。
+
 ---
 
 ## ✨ 核心功能
@@ -67,6 +77,8 @@
 | `/ollama serve`               | 启动本地 Ollama 服务         |
 | `/ollama ps`                  | 查看当前运行的模型进程       |
 | `/ollama reload`              | 重新加载模组配置             |
+| `/ollama clear`               | 删除您的聊天历史记录         |
+| `/ollama clearall`           | 删除所有聊天历史记录（仅管理员）
 
 ---
 

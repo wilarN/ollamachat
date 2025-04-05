@@ -9,6 +9,7 @@ public interface Database {
     List<ConversationEntry> getConversationHistory(UUID playerUuid, int limit);
     void saveMessage(UUID playerUuid, String message, String response);
     void deletePlayerHistory(UUID playerUuid);
+    void deleteAllHistory();
     void close();
     
     /**
