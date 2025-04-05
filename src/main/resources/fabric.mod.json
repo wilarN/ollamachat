@@ -3,45 +3,38 @@
   "id": "ollamachat",
   "version": "${version}",
   "name": "OllamaChat",
-  "description": "Chat with a locally deployed AI model from Ollama in Minecraft.",
+  "description": "A Minecraft mod that integrates with Ollama AI for chat interactions",
   "authors": [
-    "王兴家 <xingwangzhe@outlook.com>"
+    "xingwangzhe",
+    "William Johnsson"
   ],
   "contact": {
     "homepage": "https://github.com/xingwangzhe/ollamachat",
     "sources": "https://github.com/xingwangzhe/ollamachat",
-    "issues": "https://github.com/xingwangzhe/ollamachat/issues"
+    "email": "william.jsson+mcmodding[at]hotmail.com"
   },
   "donate": "https://afdian.com/a/xingwangzhe",
   "license": "MIT",
   "icon": "assets/ollamachat/icon.png",
-  "environment": "client",
+  "environment": "*",
   "entrypoints": {
-    "client": [
-      "fun.xingwangzhe.ollamachat.client.OllamachatClient"
-    ],
     "main": [
-      "fun.xingwangzhe.ollamachat.Ollamachat"
+      "fun.xingwangzhe.ollamachat.OllamaChatMod"
+    ],
+    "server": [
+      "fun.xingwangzhe.ollamachat.server.OllamachatServer"
     ]
   },
   "mixins": [
-    "ollamachat.mixins.json",
-    {
-      "config": "ollamachat.client.mixins.json",
-      "environment": "client"
-    }
+    "ollamachat.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=${loader_version}",
-    "fabric": "*",
-    "minecraft": "${minecraft_version}"
+    "minecraft": "~${minecraft_version}",
+    "java": ">=22",
+    "fabric-api": "*"
   },
-  "custom": {
-    "modmenu": {
-      "links": {
-        "modmenu.kofi": "https://ko-fi.com/xingwangzhe/gallery",
-        "modmenu.afadian": "https://afdian.com/a/xingwangzhe"
-      }
-    }
+  "suggests": {
+    "another-mod": "*"
   }
 }
