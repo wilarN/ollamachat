@@ -15,11 +15,14 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class OllamaHttpClient {
-    // 修改为生成接口地址
-    private static final String OLLAMA_API_URL = "http://localhost:11434/api/generate";
+    private static String OLLAMA_API_URL = "http://localhost:11434/api/generate";
     private static final HttpClient httpClient = HttpClient.newHttpClient();
     private static final AtomicInteger activeRequests = new AtomicInteger(0);
     private static final ExecutorService requestExecutor = Executors.newCachedThreadPool();
+
+    public static void setApiUrl(String url) {
+        OLLAMA_API_URL = url;
+    }
 
     public static void handleAIRequest(String userInput, boolean isClientMessage) {
         String currentModel = OllamaModelManager.getCurrentModel();
@@ -66,7 +69,7 @@ public class OllamaHttpClient {
                 sendAsPlayerMessage(aiResponse);
                 activeRequests.decrementAndGet();
             }).exceptionally(e -> {
-                sendAsPlayerMessage(Text.translatable("command.ollama.error.timeout").getString());
+                sendAsPlayerMessage("Error: " + e.getMessage() + ". Make sure Ollama is running with 'ollama serve'.");
                 activeRequests.decrementAndGet();
                 return null;
             });
@@ -91,9 +94,9 @@ public class OllamaHttpClient {
                         responseText;
             }
         } catch (Exception e) {
-            return Text.translatable("command.ollama.error.parse_failed").getString();
+            return "Error parsing response: " + e.getMessage();
         }
-        return Text.translatable("command.ollama.error.generic").getString();
+        return "Error: Invalid response format";
     }
 
     private static void sendAsPlayerMessage(String message) {
@@ -101,7 +104,7 @@ public class OllamaHttpClient {
             ClientPlayerEntity player = MinecraftClient.getInstance().player;
             if (player != null) {
                 String formattedMsg = "[AI] " + message;
-                player.networkHandler.sendChatMessage(formattedMsg);
+                player.sendMessage(Text.literal(formattedMsg), false);
             }
         });
     }

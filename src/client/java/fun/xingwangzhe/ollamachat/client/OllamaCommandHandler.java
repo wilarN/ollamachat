@@ -75,6 +75,31 @@ public class OllamaCommandHandler {
                                     return 1;
                                 })))
         );
+        
+        dispatcher.register(ClientCommandManager.literal("ai")
+                .executes(context -> {
+                    context.getSource().sendFeedback(Text.literal("Usage: /ai <message> - Chat with the AI"));
+                    return 1;
+                })
+                .then(ClientCommandManager.argument("message", StringArgumentType.greedyString())
+                        .executes(context -> {
+                            String message = StringArgumentType.getString(context, "message");
+                            context.getSource().sendFeedback(Text.literal("Sending message to AI: " + message));
+                            OllamaMessageHandler.setProcessingCommand(true);
+                            try {
+                                OllamaHttpClient.handleAIRequest(message, true);
+                            } finally {
+                                OllamaMessageHandler.setProcessingCommand(false);
+                            }
+                            return 1;
+                        }))
+                .then(ClientCommandManager.literal("clear")
+                        .executes(context -> {
+                            context.getSource().sendFeedback(Text.literal("Clearing chat history..."));
+                            // Implement clear history functionality
+                            return 1;
+                        }))
+        );
     }
 
     private static boolean validateModel(String modelName, FabricClientCommandSource source) {

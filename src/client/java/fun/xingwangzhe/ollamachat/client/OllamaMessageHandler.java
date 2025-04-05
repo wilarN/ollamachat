@@ -11,6 +11,8 @@ import org.jetbrains.annotations.Nullable;
 import java.time.Instant;
 
 public class OllamaMessageHandler {
+    private static boolean isProcessingCommand = false;
+
     public static void initialize() {
         ClientReceiveMessageEvents.CHAT.register(OllamaMessageHandler::onReceivedMessage);
         ClientSendMessageEvents.CHAT.register(OllamaMessageHandler::onSentMessage);
@@ -29,17 +31,21 @@ public class OllamaMessageHandler {
 
         OllamaDebugTracker.setMessageSource(isClientMessage);
 
-        if (!isClientMessage && messageText.startsWith("ai ")) {
+        if (!isClientMessage && messageText.startsWith("ai ") && !isProcessingCommand) {
             OllamaHttpClient.handleAIRequest(messageText.substring(3), isClientMessage);
         }
     }
 
     private static boolean onSentMessage(String message) {
-        if (message.startsWith("ai ")) {
+        if (message.startsWith("ai ") && !isProcessingCommand) {
             OllamaDebugTracker.setMessageSource(true);
             OllamaHttpClient.handleAIRequest(message.substring(3), true);
-            return false;
+            return false; // Prevent the message from being sent to the server
         }
         return true;
+    }
+
+    public static void setProcessingCommand(boolean processing) {
+        isProcessingCommand = processing;
     }
 }
