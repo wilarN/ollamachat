@@ -3,6 +3,7 @@
 
 Empower Minecraft players to interact with locally deployed AI models through in-game commands! Built on [Ollama](https://ollama.ai/), this mod enables dynamic AI-generated conversations.
 
+> **Note**: This is a fork of the original OllamaChat mod with additional features. I am a contributor to the project, helping add features to the original project.
 
 ## Features
 
@@ -119,6 +120,7 @@ The encryption system uses AES encryption with a random initialization vector (I
 ## Contributors
 
 - **William Johnsson** (william.jsson+mcmodding[at]hotmail.com) - Added database functionality, command improvements, and bug fixes
+- **xingwangzhe** - Original creator of the OllamaChat mod
 
 ---
 
