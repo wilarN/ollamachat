@@ -100,7 +100,8 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                         .requires(source -> !config.requireOpForCommands || source.hasPermissionLevel(config.opPermissionLevel))
                         .then(literal("list")
                                 .executes(context -> {
-                                    context.getSource().sendMessage(Text.literal("Listing available models..."));
+                                    context.getSource().sendMessage(Text.literal("Listing available models...")
+                                            .formatted(Formatting.YELLOW));
                                     return 1;
                                 }))
                         .then(literal("model")
@@ -109,7 +110,10 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                                 .executes(context -> {
                                                     String modelName = StringArgumentType.getString(context, "modelname");
                                                     currentModel = modelName;
-                                                    context.getSource().sendMessage(Text.literal("Setting model to: " + modelName));
+                                                    context.getSource().sendMessage(Text.literal("Setting model to: ")
+                                                            .formatted(Formatting.YELLOW)
+                                                            .append(Text.literal(modelName)
+                                                                    .formatted(Formatting.GREEN)));
                                                     return 1;
                                                 }))))
                         .then(literal("history")
@@ -119,21 +123,33 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                             UUID playerId = context.getSource().getPlayer().getUuid();
                                             var history = database.getConversationHistory(playerId, limit);
                                             
-                                            context.getSource().sendMessage(Text.literal("=== Conversation History ==="));
+                                            // Get the formatting for the AI response
+                                            Formatting responseFormatting = getFormattingFromString(config.responseColor);
+                                            
+                                            context.getSource().sendMessage(Text.literal("=== Conversation History ===")
+                                                    .formatted(Formatting.GOLD, Formatting.BOLD));
                                             for (var entry : history) {
-                                                context.getSource().sendMessage(Text.literal("You: " + entry.getMessage()));
-                                                context.getSource().sendMessage(Text.literal("AI: " + entry.getResponse()));
+                                                context.getSource().sendMessage(Text.literal("You: ")
+                                                        .formatted(Formatting.GREEN)
+                                                        .append(Text.literal(entry.getMessage())
+                                                                .formatted(Formatting.WHITE)));
+                                                context.getSource().sendMessage(Text.literal("AI: ")
+                                                        .formatted(responseFormatting)
+                                                        .append(Text.literal(entry.getResponse())
+                                                                .formatted(Formatting.WHITE)));
                                             }
                                             return 1;
                                         })))
                         .then(literal("serve")
                                 .executes(context -> {
-                                    context.getSource().sendMessage(Text.literal("Starting Ollama service..."));
+                                    context.getSource().sendMessage(Text.literal("Starting Ollama service...")
+                                            .formatted(Formatting.YELLOW));
                                     return 1;
                                 }))
                         .then(literal("ps")
                                 .executes(context -> {
-                                    context.getSource().sendMessage(Text.literal("Listing running models..."));
+                                    context.getSource().sendMessage(Text.literal("Listing running models...")
+                                            .formatted(Formatting.YELLOW));
                                     return 1;
                                 }))
                 );
@@ -181,7 +197,31 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                                 String formattedResponse = config.enableChatPrefix 
                                                     ? config.chatPrefix + " " + response 
                                                     : response;
-                                                source.sendMessage(Text.literal(formattedResponse));
+                                                
+                                                // Create a colorful text with the AI response
+                                                Text colorfulText;
+                                                if (config.enableChatPrefix) {
+                                                    // Split the prefix and response
+                                                    String prefix = config.chatPrefix;
+                                                    
+                                                    // Get the formatting for the prefix and response
+                                                    Formatting prefixFormatting = getFormattingFromString(config.prefixColor);
+                                                    Formatting responseFormatting = getFormattingFromString(config.responseColor);
+                                                    
+                                                    // Create a colorful text with the prefix and response
+                                                    colorfulText = Text.literal(prefix)
+                                                            .formatted(prefixFormatting)
+                                                            .append(Text.literal(" "))
+                                                            .append(Text.literal(response)
+                                                                    .formatted(responseFormatting));
+                                                } else {
+                                                    // Just color the response
+                                                    Formatting responseFormatting = getFormattingFromString(config.responseColor);
+                                                    colorfulText = Text.literal(response)
+                                                            .formatted(responseFormatting);
+                                                }
+                                                
+                                                source.sendMessage(colorfulText);
                                             });
                                         } catch (Exception e) {
                                             e.printStackTrace();
@@ -202,12 +242,15 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                     // Delete the player's chat history
                                     try {
                                         database.deletePlayerHistory(playerId);
-                                        source.sendMessage(Text.literal("Your chat history has been cleared."));
+                                        source.sendMessage(Text.literal("Your chat history has been cleared.")
+                                                .formatted(Formatting.GREEN));
                                         return 1;
                                     } catch (Exception e) {
                                         e.printStackTrace();
-                                        source.sendMessage(Text.literal("Error clearing chat history: " + e.getMessage())
-                                                .formatted(Formatting.RED));
+                                        source.sendMessage(Text.literal("Error clearing chat history: ")
+                                                .formatted(Formatting.RED)
+                                                .append(Text.literal(e.getMessage())
+                                                        .formatted(Formatting.RED)));
                                         return 0;
                                     }
                                 })));
@@ -215,13 +258,32 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                 // Register the help command
                 dispatcher.register(literal("help")
                         .executes(context -> {
-                            context.getSource().sendMessage(Text.literal("=== Ollamachat Commands ==="));
-                            context.getSource().sendMessage(Text.literal("/ollama list - List available models"));
-                            context.getSource().sendMessage(Text.literal("/ollama model name <modelname> - Set the model to use"));
-                            context.getSource().sendMessage(Text.literal("/ollama history <limit> - Show conversation history"));
-                            context.getSource().sendMessage(Text.literal("/ollama clear - Delete your chat history"));
-                            context.getSource().sendMessage(Text.literal("/" + config.aiCommandPrefix + " <message> - Chat with the AI"));
-                            context.getSource().sendMessage(Text.literal("/" + config.aiCommandPrefix + " clear - Delete your chat history"));
+                            context.getSource().sendMessage(Text.literal("=== Ollamachat Commands ===")
+                                    .formatted(Formatting.GOLD, Formatting.BOLD));
+                            context.getSource().sendMessage(Text.literal("/ollama list")
+                                    .formatted(Formatting.YELLOW)
+                                    .append(Text.literal(" - List available models")
+                                            .formatted(Formatting.WHITE)));
+                            context.getSource().sendMessage(Text.literal("/ollama model name <modelname>")
+                                    .formatted(Formatting.YELLOW)
+                                    .append(Text.literal(" - Set the model to use")
+                                            .formatted(Formatting.WHITE)));
+                            context.getSource().sendMessage(Text.literal("/ollama history <limit>")
+                                    .formatted(Formatting.YELLOW)
+                                    .append(Text.literal(" - Show conversation history")
+                                            .formatted(Formatting.WHITE)));
+                            context.getSource().sendMessage(Text.literal("/ollama clear")
+                                    .formatted(Formatting.YELLOW)
+                                    .append(Text.literal(" - Delete your chat history")
+                                            .formatted(Formatting.WHITE)));
+                            context.getSource().sendMessage(Text.literal("/" + config.aiCommandPrefix + " <message>")
+                                    .formatted(Formatting.YELLOW)
+                                    .append(Text.literal(" - Chat with the AI")
+                                            .formatted(Formatting.WHITE)));
+                            context.getSource().sendMessage(Text.literal("/" + config.aiCommandPrefix + " clear")
+                                    .formatted(Formatting.YELLOW)
+                                    .append(Text.literal(" - Delete your chat history")
+                                            .formatted(Formatting.WHITE)));
                             return 1;
                         }));
             }
@@ -287,6 +349,21 @@ public class OllamachatServer implements DedicatedServerModInitializer {
         } catch (Exception e) {
             e.printStackTrace();
             return "Error processing AI request: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Converts a string color name to a Minecraft Formatting
+     * 
+     * @param colorName The name of the color
+     * @return The corresponding Formatting, or WHITE if not found
+     */
+    private static Formatting getFormattingFromString(String colorName) {
+        try {
+            return Formatting.valueOf(colorName.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            LOGGER.warn("Invalid color name: " + colorName + ", using WHITE instead");
+            return Formatting.WHITE;
         }
     }
 

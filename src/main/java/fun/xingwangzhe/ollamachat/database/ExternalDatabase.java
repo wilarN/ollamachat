@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.util.function.Consumer;
 
 public class ExternalDatabase implements Database {
     private static final Logger LOGGER = LoggerFactory.getLogger("OllamaChat");
@@ -170,6 +171,37 @@ public class ExternalDatabase implements Database {
             e.printStackTrace();
         }
         return conversations;
+    }
+
+    /**
+     * Optimizes memory usage when retrieving conversations by using a streaming approach
+     * This is useful for large result sets to prevent OutOfMemoryError
+     */
+    public void streamRecentConversations(UUID playerUuid, int limit, Consumer<String> consumer) {
+        try (PreparedStatement stmt = connection.prepareStatement(
+            "SELECT message, response FROM conversations WHERE player_uuid = ? ORDER BY timestamp DESC LIMIT ?")) {
+            stmt.setString(1, playerUuid.toString());
+            stmt.setInt(2, limit);
+            
+            // Set fetch size to optimize memory usage
+            stmt.setFetchSize(10);
+            
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                String message = rs.getString("message");
+                String response = rs.getString("response");
+                
+                // Decrypt messages if encryption is enabled
+                if (EncryptionManager.isEncryptionEnabled()) {
+                    message = decryptMessage(message);
+                    response = decryptMessage(response);
+                }
+                
+                consumer.accept(String.format(config.memoryFormat, message, response));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override

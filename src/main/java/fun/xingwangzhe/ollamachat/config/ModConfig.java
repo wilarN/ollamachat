@@ -40,6 +40,12 @@ public class ModConfig {
     @SerializedName("chatPrefix") // The prefix to use for AI responses
     public String chatPrefix = "[AI]";
     
+    @SerializedName("prefixColor") // The color to use for the AI prefix
+    public String prefixColor = "gold";
+    
+    @SerializedName("responseColor") // The color to use for the AI response
+    public String responseColor = "aqua";
+    
     @SerializedName("maxResponseLength") // Maximum length of AI responses (characters)
     public int maxResponseLength = 1000;
     
@@ -118,8 +124,20 @@ public class ModConfig {
     private static final String CONFIG_PATH = "config/ollamachat.json";
     private static final String ALTERNATIVE_CONFIG_PATH = "../config/ollamachat.json";
     private static final String SERVER_CONFIG_PATH = "./config/ollamachat.json";
+    
+    // Cache for loaded configuration
+    private static ModConfig cachedConfig = null;
+    private static long lastLoadTime = 0;
+    private static final long CACHE_DURATION = 60000; // 1 minute in milliseconds
 
     public static ModConfig load() {
+        // Check if we have a cached config that's still valid
+        long currentTime = System.currentTimeMillis();
+        if (cachedConfig != null && (currentTime - lastLoadTime < CACHE_DURATION)) {
+            System.out.println("Using cached configuration");
+            return cachedConfig;
+        }
+        
         try {
             // Try the server config path first
             Path configPath = Paths.get(SERVER_CONFIG_PATH);
@@ -141,6 +159,8 @@ public class ModConfig {
                         System.out.println("Config file not found at alternative location, creating default config");
                         ModConfig defaultConfig = new ModConfig();
                         defaultConfig.save();
+                        cachedConfig = defaultConfig;
+                        lastLoadTime = currentTime;
                         return defaultConfig;
                     }
                 }
@@ -165,6 +185,10 @@ public class ModConfig {
                                   ", Port: " + config.databasePort + 
                                   ", Name: " + config.databaseName + 
                                   ", Username: " + config.databaseUsername);
+                
+                // Cache the loaded config
+                cachedConfig = config;
+                lastLoadTime = currentTime;
                 return config;
             }
         } catch (IOException e) {
@@ -172,6 +196,15 @@ public class ModConfig {
             e.printStackTrace();
             return new ModConfig();
         }
+    }
+    
+    /**
+     * Forces a reload of the configuration from disk, bypassing the cache
+     */
+    public static ModConfig forceReload() {
+        cachedConfig = null;
+        lastLoadTime = 0;
+        return load();
     }
 
     public void save() {
@@ -187,6 +220,10 @@ public class ModConfig {
                     GSON.toJson(this, writer);
                 }
                 System.out.println("Config saved successfully to server location");
+                
+                // Update the cache with the current config
+                cachedConfig = this;
+                lastLoadTime = System.currentTimeMillis();
             } catch (IOException e) {
                 System.err.println("Error saving config to server location: " + e.getMessage());
                 
@@ -201,6 +238,10 @@ public class ModConfig {
                         GSON.toJson(this, writer);
                     }
                     System.out.println("Config saved successfully to default location");
+                    
+                    // Update the cache with the current config
+                    cachedConfig = this;
+                    lastLoadTime = System.currentTimeMillis();
                 } catch (IOException e2) {
                     System.err.println("Error saving config to default location: " + e2.getMessage());
                     
@@ -214,6 +255,10 @@ public class ModConfig {
                         GSON.toJson(this, writer);
                     }
                     System.out.println("Config saved successfully to alternative location");
+                    
+                    // Update the cache with the current config
+                    cachedConfig = this;
+                    lastLoadTime = System.currentTimeMillis();
                 }
             }
         } catch (IOException e) {
