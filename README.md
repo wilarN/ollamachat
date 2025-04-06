@@ -1,7 +1,6 @@
-[中文](README_CN.md)
 # OllamaChat Mod (Fabric)
 
-Empower Minecraft players to interact with locally deployed AI models through in-game commands! Built on [Ollama](https://ollama.ai/), this mod enables dynamic AI-generated conversations.
+Empower Minecraft players to interact with locally deployed AI models through in-game commands! Built on [Ollama](https://ollama.com/), this mod enables dynamic AI-generated conversations.
 
 > **Note**: This is a fork of the original OllamaChat mod with additional features. I am a contributor to the project, helping add features to the original project.
 
@@ -30,11 +29,13 @@ Empower Minecraft players to interact with locally deployed AI models through in
 
 ### Admin Commands
 - `/ollama list` - List available AI models
-- `/ollama model name <modelname>` - Set the AI model to use
+- `/ollama model <modelname>` - Set the AI model to use
 - `/ollama history <limit>` - Show conversation history
 - `/ollama clear` - Delete your chat history
 - `/ollama clearall` - Delete all chat history (admin only)
 - `/ollama reload` - Reload the configuration
+- `/ollama serve` - Start the Ollama service
+- `/ollama ps` - View active model processes
 
 ## Configuration
 
@@ -49,6 +50,9 @@ The mod can be configured in `config/ollamachat.json`:
   "aiCommandPrefix": "ai",
   "enableChatPrefix": true,
   "chatPrefix": "[AI]",
+  "prefixColor": "gold",
+  "responseColor": "aqua",
+  "privateChatPrefix": "pai",
   "maxResponseLength": 1000,
   "stripHtmlTags": true,
   "messageCooldown": 5,
@@ -84,6 +88,9 @@ The mod can be configured in `config/ollamachat.json`:
 - `aiCommandPrefix`: The prefix for the AI chat command (default: "ai")
 - `enableChatPrefix`: Whether to add a prefix to AI responses
 - `chatPrefix`: The prefix to add to AI responses (if enabled)
+- `prefixColor`: Color for the AI prefix (Minecraft color names)
+- `responseColor`: Color for the AI response text (Minecraft color names)
+- `privateChatPrefix`: Prefix for private chat commands (default: "pai")
 - `maxResponseLength`: Maximum length of AI responses (characters)
 - `stripHtmlTags`: Whether to remove HTML tags from AI responses
 - `messageCooldown`: Cooldown time between messages (seconds)
@@ -92,7 +99,7 @@ The mod can be configured in `config/ollamachat.json`:
 #### Memory Settings
 - `enableMemory`: Whether to enable conversation memory
 - `memoryHistoryLimit`: Maximum number of conversation entries to remember
-- `memoryFormat`: Format string for conversation memory
+- `memoryFormat`: Format string for conversation memory (supports {message} and {response} placeholders)
 - `maxContextTokens`: Maximum number of tokens to include in context
 - `maxMessageLength`: Maximum length of user messages (characters)
 - `messageCompression`: Whether to compress messages for memory optimization
@@ -113,6 +120,24 @@ The mod can be configured in `config/ollamachat.json`:
 - `enableEncryption`: Enable/disable at-rest encryption
 - `encryptionKey`: Custom encryption key (leave empty for auto-generated key)
 
+## Technical Details
+
+### Memory System
+The conversation memory system:
+- Maintains context between messages
+- Uses configurable format for memory entries
+- Supports token limits for context
+- Implements message compression
+- Automatically cleans up old conversations
+
+### API Integration
+The mod integrates with Ollama through:
+- HTTP API calls to the local Ollama service
+- JSON request/response handling
+- Stream support for real-time responses
+- Automatic model validation
+- Error recovery and retry logic
+
 ## Security
 
 The mod includes at-rest encryption for all chat messages and AI responses. When encryption is enabled:
@@ -130,97 +155,73 @@ The encryption system uses AES encryption with a random initialization vector (I
 
 ## Contributors
 
-- **William Johnsson** (william.jsson+mcmodding[at]hotmail.com) - Added database functionality, command improvements, and bug fixes
-- **xingwangzhe** - Original creator of the OllamaChat mod
+- **William Johnsson** (william.jsson+mcmodding[at]hotmail.com) - Added database functionality, command improvements, and additional features + bug fixes.
+- **xingwangzhe** - Original creator of the OllamaChat mod.
 
 ---
 
 ## 🛠️ Prerequisites
-- **Must have [Ollama](https://ollama.ai/) installed locally** with at least one model deployed.
+- **Must have [Ollama](https://ollama.com/) installed locally** with at least one model deployed.
 - Run `ollama serve` in your terminal to start the local service.
 - Download models using `ollama pull <model-name>` (e.g., `llama3`).
 
-### ⚠️ Database Dependencies (Important!)
-If you plan to use the database features of this mod, you **must** install one of the following mods:
+### Quick Ollama Installation Guide
 
-- **For SQLite database support**: [Kosmolot's SQLite mod](https://modrinth.com/mod/kosmolot-sqlite)
-- **For MySQL/MariaDB database support**: [Kosmolot's MySQL mod](https://modrinth.com/mod/kosmolot-mysql)
+> **Disclaimer**: This is a basic guide for getting started. For the most up-to-date installation instructions and troubleshooting, please refer to the [official Ollama documentation](https://github.com/ollama/ollama/blob/main/README.md#quickstart).
 
-These mods provide the necessary database connectors that work with both Fabric and Forge.
+#### Linux
+```bash
+# Install using curl
+curl -fsSL https://ollama.com/install.sh | sh
 
-> **Note**: If you don't install the required database mod, you'll see an error message like "MySQL driver not found" or "SQLite driver not found" when the mod tries to connect to the database. The mod will continue to work without database support, but conversation history will not be saved.
+# Or using wget
+wget -O - https://ollama.com/install.sh | sh
+```
 
----
+#### macOS
+[Download for macOS](https://ollama.com/download/mac)
 
-## ✨ Key Features
-1. **Model Switching**
-   Seamlessly switch between downloaded models in-game.
-2. **Real-time Chat**
-   Send messages starting with `ai ` to receive AI-generated responses.
-3. **Service Control**
-   Manage Ollama service status directly via commands.
-4. **Conversation Memory**
-   AI remembers previous conversations for context-aware responses.
-5. **Database Support**
-   Store conversations in SQLite or external MySQL database.
-6. **Privacy Controls**
-   Clear your chat history with a simple command.
+#### Windows
+1. [Download for Windows](https://ollama.com/download/windows)
+2. Run the installer
+3. Follow the installation wizard
 
----
+### Getting Started with Ollama
 
-## 📜 Command List
-| Command                       | Description                  |
-|-------------------------------|------------------------------|
-| `/ollama list`                | List all downloaded models   |
-| `/ollama model <modelname>`  | Switch to a specific model   |
-| `/ollama history <limit>`     | Show conversation history    |
-| `/ollama serve`               | Start the Ollama service     |
-| `/ollama ps`                  | View active model processes  |
-| `/ai <message>`               | Chat with the AI             |
-| `/ai clear`                   | Delete your chat history     |
+1. **Start the Ollama service**
+   ```bash
+   ollama serve
+   ```
 
----
+2. **Download a model** (choose one):
+   ```bash
+   # Pull a model
+   ollama pull <modelname ex. llama3.2>
+   ```
 
-## 🎮 Usage Examples
-1. **Set Model**
-   `/ollama model llama3`
-   *Switch to the "llama3" model.*
+3. **Test the model**
+   ```bash
+   # Simple chat
+   ollama run mistral "Hello, how are you?"
+   
+   # Or start an interactive session
+   ollama run mistral
+   ```
 
-2. **Public Chat**
-   Type in chat:
-   `/[aiCommandPrefix] How to build a house in Minecraft?`
-   The AI will respond with an answer in-game, visible to all players.
+4. **Verify the API is working**
+   ```bash
+   # Test the API endpoint
+   curl http://localhost:11434/api/generate -d '{
+     "model": "<modelname ex. llama3.2>",
+     "prompt": "Hello, how are you?"
+   }'
+   ```
 
-3. **Private Chat**
-   Type in chat:
-   `/p[aiCommandPrefix] What's the best way to find diamonds?`
-   The AI will respond with an answer in-game, visible only to you.
-
-4. **View History**
-   `/ollama history 5`
-   *View your 5 most recent conversations.*
-
-5. **Clear History**
-   `/[aiCommandPrefix] clear`
-   *Delete all your conversation history for privacy.*
-
-6. **Show Help**
-   `/[aiCommandPrefix] help`
-   *Display information about the mod's features and commands.*
-
----
-
-## ⚙️ Configuration
-The mod supports two database types:
-- **Local SQLite**: Default option, stores data in a local file
-- **External MySQL**: For server environments with multiple instances
-
-Database settings can be configured in the mod's config file:
-- `databaseType`: "local" or "external"
-- `localDatabasePath`: Path for SQLite database
-- `maxConversationsPerPlayer`: Limit conversations per player
-- `maxConversationAge`: Auto-delete conversations older than this (in seconds)
-- `cleanupInterval`: How often to run cleanup (in seconds)
+> **Note**: While the mod might work without additional database mods, you might encounter issues with conversation history storage. If you want to use database features (SQLite or MySQL), you may need to install:
+> - [Kosmolot's SQLite mod](https://modrinth.com/mod/kosmolot-sqlite) for SQLite support
+> - [Kosmolot's MySQL mod](https://modrinth.com/mod/kosmolot-mysql) for MySQL support
+> 
+> Without these mods, conversation history features may be limited, but basic chat functionality should work.
 
 ---
 
@@ -228,3 +229,7 @@ Database settings can be configured in the mod's config file:
 - Ensure Ollama is properly installed and models are downloaded via CLI before use.
 - Check if the Ollama service is running if you encounter timeout errors.
 - Response speed depends on your local hardware performance.
+- The mod requires proper permissions to execute commands (configurable in settings).
+- Memory usage can be optimized through the configuration options.
+- For best performance, use a model that fits your hardware capabilities.
+- The first response might be slower as the model loads into memory.
