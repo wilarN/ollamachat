@@ -30,7 +30,7 @@ Empower Minecraft players to interact with locally deployed AI models through in
 
 ### Admin Commands
 - `/ollama list` - List available AI models
-- `/ollama model <modelname>` - Set the AI model to use
+- `/ollama model name <modelname>` - Set the AI model to use
 - `/ollama history <limit>` - Show conversation history
 - `/ollama clear` - Delete your chat history
 - `/ollama clearall` - Delete all chat history (admin only)
