@@ -10,11 +10,16 @@ import net.minecraft.text.Text;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.util.concurrent.*;
+import net.minecraft.util.Formatting;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class OllamaCommandHandler {
     private static final ExecutorService COMMAND_EXECUTOR = Executors.newFixedThreadPool(2);
     private static final String GENERIC_ERROR = "command.ollama.error.generic";
     private static final String MODEL_NOT_FOUND_ERROR = "command.ollama.error.model_not_found";
+    private static final Logger LOGGER = LoggerFactory.getLogger("OllamaChat-Client");
 
     private static final SuggestionProvider<FabricClientCommandSource> MODEL_SUGGESTIONS = (context, builder) -> {
         try {
@@ -96,9 +101,22 @@ public class OllamaCommandHandler {
                 .then(ClientCommandManager.literal("clear")
                         .executes(context -> {
                             context.getSource().sendFeedback(Text.literal("Clearing chat history..."));
-                            // Implement clear history functionality
+                            OllamaClientDatabase.clearHistory(true);
+                            context.getSource().sendFeedback(Text.literal("Chat history cleared!").formatted(Formatting.GREEN));
                             return 1;
                         }))
+                .then(ClientCommandManager.literal("history")
+                        .executes(context -> {
+                            context.getSource().sendFeedback(Text.literal("Usage: /ai history <1-30>"));
+                            return 1;
+                        })
+                        .then(ClientCommandManager.argument("limit", IntegerArgumentType.integer(1, 30))
+                                .executes(context -> {
+                                    int limit = IntegerArgumentType.getInteger(context, "limit");
+                                    context.getSource().sendFeedback(Text.literal("Showing last " + limit + " messages:"));
+                                    // TODO: Implement history display
+                                    return 1;
+                                })))
         );
     }
 

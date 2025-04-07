@@ -1,51 +1,46 @@
 package fun.xingwangzhe.ollamachat.client;
 
-import com.mojang.authlib.GameProfile;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.network.message.MessageType;
-import net.minecraft.network.message.SignedMessage;
 import net.minecraft.text.Text;
-import org.jetbrains.annotations.Nullable;
-import java.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class OllamaMessageHandler {
-    private static boolean isProcessingCommand = false;
+    private static final Logger LOGGER = LoggerFactory.getLogger("OllamaChat-Client");
+    private static boolean processingCommand = false;
 
     public static void initialize() {
-        ClientReceiveMessageEvents.CHAT.register(OllamaMessageHandler::onReceivedMessage);
-        ClientSendMessageEvents.CHAT.register(OllamaMessageHandler::onSentMessage);
-    }
+        // Register message handlers
+        ClientReceiveMessageEvents.CHAT.register((message, signedMessage, sender, params, receptionTimestamp) -> {
+            if (processingCommand) return;
+            if (message.getString().startsWith("ai ")) {
+                processingCommand = true;
+                String prompt = message.getString().substring(3);
+                OllamaHttpClient.handleAIRequest(prompt, true);
+                processingCommand = false;
+            }
+        });
 
-    private static void onReceivedMessage(Text text, @Nullable SignedMessage signedMessage,
-                                          @Nullable GameProfile gameProfile,
-                                          MessageType.Parameters parameters, Instant instant) {
-        if (signedMessage == null) return;
-
-        String senderName = gameProfile != null ? gameProfile.getName() : "Unknown";
-        if (senderName.equals("[AI]")) return;
-
-        String messageText = signedMessage.getSignedContent();
-        boolean isClientMessage = senderName.equals(MinecraftClient.getInstance().getSession().getUsername());
-
-        OllamaDebugTracker.setMessageSource(isClientMessage);
-
-        if (!isClientMessage && messageText.startsWith("ai ") && !isProcessingCommand) {
-            OllamaHttpClient.handleAIRequest(messageText.substring(3), isClientMessage);
-        }
-    }
-
-    private static boolean onSentMessage(String message) {
-        if (message.startsWith("ai ") && !isProcessingCommand) {
-            OllamaDebugTracker.setMessageSource(true);
-            OllamaHttpClient.handleAIRequest(message.substring(3), true);
-            return false; // Prevent the message from being sent to the server
-        }
-        return true;
+        ClientSendMessageEvents.CHAT.register((message) -> {
+            if (processingCommand) return;
+            if (message.startsWith("ai ")) {
+                processingCommand = true;
+                String prompt = message.substring(3);
+                OllamaHttpClient.handleAIRequest(prompt, true);
+                processingCommand = false;
+            }
+        });
     }
 
     public static void setProcessingCommand(boolean processing) {
-        isProcessingCommand = processing;
+        processingCommand = processing;
+    }
+
+    public static void handleAIResponse(String response) {
+        LOGGER.info("Handling AI response: " + response);
+        // Save response to database
+        OllamaClientDatabase.saveMessage("", response, true);
     }
 }

@@ -735,7 +735,8 @@ public class OllamachatServer implements DedicatedServerModInitializer {
             }
             
             // Add the current message with clear indication of who is speaking
-            contextBuilder.append("Current message from ").append(playerName).append(": ").append(message);
+            contextBuilder.append("Message from ").append(playerName).append(": ").append(message);
+            contextBuilder.append("\n\nPlease provide a direct response without using a conversation format or role-playing.");
             
             String prompt = contextBuilder.toString();
 

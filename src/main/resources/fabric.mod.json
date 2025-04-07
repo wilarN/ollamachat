@@ -21,6 +21,9 @@
     "main": [
       "fun.xingwangzhe.ollamachat.OllamaChatMod"
     ],
+    "client": [
+      "fun.xingwangzhe.ollamachat.client.OllamachatClient"
+    ],
     "server": [
       "fun.xingwangzhe.ollamachat.server.OllamachatServer"
     ]

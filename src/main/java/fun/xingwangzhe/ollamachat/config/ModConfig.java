@@ -73,7 +73,7 @@ public class ModConfig {
     public int memoryHistoryLimit = 5;
     
     @SerializedName("memoryFormat") // Format for each message in history. Use {message} and {response} as placeholders
-    public String memoryFormat = "User: {message}\nAssistant: {response}";
+    public String memoryFormat = "Message: {message}\nResponse: {response}";
     
     // Memory optimization settings
     @SerializedName("maxContextTokens")
