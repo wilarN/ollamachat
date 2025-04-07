@@ -18,6 +18,8 @@ Empower Minecraft players to interact with locally deployed AI models through in
 - Individual player memory and conversation history
 - Automatic database cleanup and management
 - Help command to display mod information
+- Separate databases for private and public conversations
+- View your conversation history with the history command
 
 ## Commands
 
@@ -25,6 +27,7 @@ Empower Minecraft players to interact with locally deployed AI models through in
 - `/[aiCommandPrefix] <message>` - Chat with the AI in public chat
 - `/p[aiCommandPrefix] <message>` - Chat with the AI in private chat (only visible to you)
 - `/[aiCommandPrefix] clear` - Delete your chat history
+- `/[aiCommandPrefix] history <1-30>` - View your conversation history
 - `/[aiCommandPrefix] help` - Show help information about the mod
 
 ### Admin Commands
@@ -129,6 +132,15 @@ The conversation memory system:
 - Supports token limits for context
 - Implements message compression
 - Automatically cleans up old conversations
+- Separates private and public conversations in different database tables
+
+### Privacy Features
+The mod includes several privacy features:
+- Private chat mode that only shows messages to the player who sent them
+- Separate database tables for private and public conversations
+- At-rest encryption for all chat messages and AI responses
+- Individual player conversation history
+- Ability to clear personal chat history
 
 ### API Integration
 The mod integrates with Ollama through:

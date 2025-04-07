@@ -9,8 +9,8 @@ public class MessageCooldownManager {
     private final ModConfig config;
     private final Map<UUID, Long> lastMessageTimes;
     private long lastCleanupTime;
-    private static final long CLEANUP_INTERVAL = 3600000; // 1 hour in milliseconds
-    private static final long INACTIVE_THRESHOLD = 86400000; // 24 hours in milliseconds
+    private static final long CLEANUP_INTERVAL = 900000; // 15 minutes in milliseconds
+    private static final long INACTIVE_THRESHOLD = 3600000; // 1 hour in milliseconds
 
     public MessageCooldownManager(ModConfig config) {
         this.config = config;
@@ -24,9 +24,7 @@ public class MessageCooldownManager {
         if (lastTime == null) {
             return true;
         }
-
-        long currentTime = System.currentTimeMillis() / 1000;
-        return (currentTime - lastTime) >= config.messageCooldown;
+        return (System.currentTimeMillis() / 1000 - lastTime) >= config.messageCooldown;
     }
 
     public int getRemainingCooldown(UUID playerId) {
@@ -35,10 +33,7 @@ public class MessageCooldownManager {
         if (lastTime == null) {
             return 0;
         }
-
-        long currentTime = System.currentTimeMillis() / 1000;
-        int remaining = (int) (config.messageCooldown - (currentTime - lastTime));
-        return Math.max(0, remaining);
+        return Math.max(0, (int) (config.messageCooldown - (System.currentTimeMillis() / 1000 - lastTime)));
     }
 
     public void updateLastMessageTime(UUID playerId) {
@@ -47,8 +42,7 @@ public class MessageCooldownManager {
     }
 
     public String getCooldownMessage(UUID playerId) {
-        int remaining = getRemainingCooldown(playerId);
-        return String.format(config.cooldownMessage, remaining);
+        return String.format(config.cooldownMessage, getRemainingCooldown(playerId));
     }
     
     /**
@@ -58,7 +52,6 @@ public class MessageCooldownManager {
         long currentTime = System.currentTimeMillis();
         if (currentTime - lastCleanupTime > CLEANUP_INTERVAL) {
             lastCleanupTime = currentTime;
-            
             long threshold = currentTime / 1000 - INACTIVE_THRESHOLD / 1000;
             lastMessageTimes.entrySet().removeIf(entry -> entry.getValue() < threshold);
         }

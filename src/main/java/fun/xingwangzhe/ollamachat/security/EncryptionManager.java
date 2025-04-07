@@ -79,7 +79,7 @@ public class EncryptionManager {
             return encryption.decrypt(encryptedMessage);
         } catch (Exception e) {
             // Log the error but don't throw an exception
-            System.err.println("Failed to decrypt message in EncryptionManager: " + e.getMessage());
+            OllamaChatMod.LOGGER.error("Failed to decrypt message in EncryptionManager: {}", e.getMessage());
             // Return the original message if decryption fails
             return encryptedMessage;
         }

@@ -8,6 +8,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
+import fun.xingwangzhe.ollamachat.OllamaChatMod;
 
 /**
  * Utility class for encrypting and decrypting messages
@@ -124,7 +125,7 @@ public class MessageEncryption {
             return new String(decryptedBytes, StandardCharsets.UTF_8);
         } catch (Exception e) {
             // Log the error but don't throw an exception
-            System.err.println("Failed to decrypt message: " + e.getMessage());
+            OllamaChatMod.LOGGER.error("Failed to decrypt message: {}", e.getMessage());
             // Return the original message if decryption fails
             return encryptedMessage;
         }

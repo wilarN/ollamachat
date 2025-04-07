@@ -16,6 +16,7 @@ public class ExternalDatabase implements Database {
     private final Connection connection;
     private final ModConfig config;
     private final MemoryOptimizer memoryOptimizer;
+    private long lastCleanupTime = 0;
     
     // TODO: Future optimization - Implement connection pooling for better performance
     // This would allow reusing connections instead of keeping a single connection open
@@ -80,8 +81,10 @@ public class ExternalDatabase implements Database {
         // Create tables if they don't exist
         try (Statement stmt = connection.createStatement()) {
             LOGGER.info("Creating tables if they don't exist");
+            
+            // Create public conversations table
             stmt.execute("""
-                CREATE TABLE IF NOT EXISTS conversations (
+                CREATE TABLE IF NOT EXISTS public_conversations (
                     id BIGINT PRIMARY KEY AUTO_INCREMENT,
                     player_uuid VARCHAR(36) NOT NULL,
                     message TEXT NOT NULL,
@@ -92,6 +95,21 @@ public class ExternalDatabase implements Database {
                     INDEX idx_last_access (last_access)
                 )
             """);
+            
+            // Create private conversations table
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS private_conversations (
+                    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    player_uuid VARCHAR(36) NOT NULL,
+                    message TEXT NOT NULL,
+                    response TEXT NOT NULL,
+                    timestamp BIGINT NOT NULL,
+                    last_access BIGINT NOT NULL,
+                    INDEX idx_player_uuid (player_uuid),
+                    INDEX idx_last_access (last_access)
+                )
+            """);
+            
             LOGGER.info("Tables created successfully");
         } catch (SQLException e) {
             LOGGER.error("Failed to create tables: {}", e.getMessage());
@@ -101,9 +119,26 @@ public class ExternalDatabase implements Database {
 
     @Override
     public void addMessage(UUID playerUuid, String message, String response) {
+        // For backward compatibility, use public conversations
+        savePublicMessage(playerUuid, message, response);
+    }
+    
+    @Override
+    public void saveMessage(UUID playerUuid, String message, String response) {
+        // For backward compatibility, use public conversations
+        savePublicMessage(playerUuid, message, response);
+    }
+    
+    @Override
+    public void savePublicMessage(UUID playerUuid, String message, String response) {
         try {
+            // Check if cleanup is needed
             long currentTime = System.currentTimeMillis() / 1000;
-            
+            if (currentTime - lastCleanupTime > config.cleanupInterval) {
+                cleanupOldMessages();
+                lastCleanupTime = currentTime;
+            }
+
             // Optimize message and response
             message = memoryOptimizer.optimizeMessage(message);
             response = memoryOptimizer.optimizeMessage(response);
@@ -116,7 +151,7 @@ public class ExternalDatabase implements Database {
 
             // Insert new message
             try (PreparedStatement stmt = connection.prepareStatement(
-                "INSERT INTO conversations (player_uuid, message, response, timestamp, last_access) VALUES (?, ?, ?, ?, ?)")) {
+                "INSERT INTO public_conversations (player_uuid, message, response, timestamp, last_access) VALUES (?, ?, ?, ?, ?)")) {
                 stmt.setString(1, playerUuid.toString());
                 stmt.setString(2, message);
                 stmt.setString(3, response);
@@ -127,14 +162,14 @@ public class ExternalDatabase implements Database {
 
             // Check and limit conversations per player
             try (PreparedStatement stmt = connection.prepareStatement(
-                "SELECT COUNT(*) FROM conversations WHERE player_uuid = ?")) {
+                "SELECT COUNT(*) FROM public_conversations WHERE player_uuid = ?")) {
                 stmt.setString(1, playerUuid.toString());
                 ResultSet rs = stmt.executeQuery();
                 if (rs.next() && rs.getInt(1) > config.maxConversationsPerPlayer) {
                     // Delete oldest conversations for this player
                     try (PreparedStatement deleteStmt = connection.prepareStatement(
-                        "DELETE FROM conversations WHERE player_uuid = ? AND id IN " +
-                        "(SELECT id FROM conversations WHERE player_uuid = ? ORDER BY timestamp ASC LIMIT ?)")) {
+                        "DELETE FROM public_conversations WHERE player_uuid = ? AND id IN " +
+                        "(SELECT id FROM public_conversations WHERE player_uuid = ? ORDER BY timestamp ASC LIMIT ?)")) {
                         int excess = rs.getInt(1) - config.maxConversationsPerPlayer;
                         deleteStmt.setString(1, playerUuid.toString());
                         deleteStmt.setString(2, playerUuid.toString());
@@ -144,15 +179,72 @@ public class ExternalDatabase implements Database {
                 }
             }
         } catch (SQLException e) {
+            LOGGER.error("Failed to save public message: {}", e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    @Override
+    public void savePrivateMessage(UUID playerUuid, String message, String response) {
+        try {
+            // Check if cleanup is needed
+            long currentTime = System.currentTimeMillis() / 1000;
+            if (currentTime - lastCleanupTime > config.cleanupInterval) {
+                cleanupOldMessages();
+                lastCleanupTime = currentTime;
+            }
+
+            // Optimize message and response
+            message = memoryOptimizer.optimizeMessage(message);
+            response = memoryOptimizer.optimizeMessage(response);
+            
+            // Encrypt messages if encryption is enabled
+            if (EncryptionManager.isEncryptionEnabled()) {
+                message = EncryptionManager.encrypt(message);
+                response = EncryptionManager.encrypt(response);
+            }
+
+            // Insert new message
+            try (PreparedStatement stmt = connection.prepareStatement(
+                "INSERT INTO private_conversations (player_uuid, message, response, timestamp, last_access) VALUES (?, ?, ?, ?, ?)")) {
+                stmt.setString(1, playerUuid.toString());
+                stmt.setString(2, message);
+                stmt.setString(3, response);
+                stmt.setLong(4, currentTime);
+                stmt.setLong(5, currentTime);
+                stmt.executeUpdate();
+            }
+
+            // Check and limit conversations per player
+            try (PreparedStatement stmt = connection.prepareStatement(
+                "SELECT COUNT(*) FROM private_conversations WHERE player_uuid = ?")) {
+                stmt.setString(1, playerUuid.toString());
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next() && rs.getInt(1) > config.maxConversationsPerPlayer) {
+                    // Delete oldest conversations for this player
+                    try (PreparedStatement deleteStmt = connection.prepareStatement(
+                        "DELETE FROM private_conversations WHERE player_uuid = ? AND id IN " +
+                        "(SELECT id FROM private_conversations WHERE player_uuid = ? ORDER BY timestamp ASC LIMIT ?)")) {
+                        int excess = rs.getInt(1) - config.maxConversationsPerPlayer;
+                        deleteStmt.setString(1, playerUuid.toString());
+                        deleteStmt.setString(2, playerUuid.toString());
+                        deleteStmt.setInt(3, excess);
+                        deleteStmt.executeUpdate();
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            LOGGER.error("Failed to save private message: {}", e.getMessage());
             e.printStackTrace();
         }
     }
 
     @Override
     public List<String> getRecentConversations(UUID playerUuid, int limit) {
+        // For backward compatibility, use public conversations
         List<String> conversations = new ArrayList<>();
         try (PreparedStatement stmt = connection.prepareStatement(
-            "SELECT message, response FROM conversations WHERE player_uuid = ? ORDER BY timestamp DESC LIMIT ?")) {
+            "SELECT message, response FROM public_conversations WHERE player_uuid = ? ORDER BY timestamp DESC LIMIT ?")) {
             stmt.setString(1, playerUuid.toString());
             stmt.setInt(2, limit);
             
@@ -170,23 +262,17 @@ public class ExternalDatabase implements Database {
                 conversations.add(String.format(config.memoryFormat, message, response));
             }
         } catch (SQLException e) {
+            LOGGER.error("Failed to get recent conversations: {}", e.getMessage());
             e.printStackTrace();
         }
         return conversations;
     }
 
-    /**
-     * Optimizes memory usage when retrieving conversations by using a streaming approach
-     * This is useful for large result sets to prevent OutOfMemoryError
-     */
     public void streamRecentConversations(UUID playerUuid, int limit, Consumer<String> consumer) {
         try (PreparedStatement stmt = connection.prepareStatement(
-            "SELECT message, response FROM conversations WHERE player_uuid = ? ORDER BY timestamp DESC LIMIT ?")) {
+            "SELECT message, response FROM public_conversations WHERE player_uuid = ? ORDER BY timestamp DESC LIMIT ?")) {
             stmt.setString(1, playerUuid.toString());
             stmt.setInt(2, limit);
-            
-            // Set fetch size to optimize memory usage
-            stmt.setFetchSize(10);
             
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
@@ -202,15 +288,22 @@ public class ExternalDatabase implements Database {
                 consumer.accept(String.format(config.memoryFormat, message, response));
             }
         } catch (SQLException e) {
+            LOGGER.error("Failed to stream recent conversations: {}", e.getMessage());
             e.printStackTrace();
         }
     }
 
     @Override
     public List<ConversationEntry> getConversationHistory(UUID playerUuid, int limit) {
+        // For backward compatibility, use public conversations
+        return getPublicConversationHistory(playerUuid, limit);
+    }
+    
+    @Override
+    public List<ConversationEntry> getPublicConversationHistory(UUID playerUuid, int limit) {
         List<ConversationEntry> history = new ArrayList<>();
         try (PreparedStatement stmt = connection.prepareStatement(
-            "SELECT message, response FROM conversations WHERE player_uuid = ? ORDER BY timestamp DESC LIMIT ?")) {
+            "SELECT message, response FROM public_conversations WHERE player_uuid = ? ORDER BY timestamp DESC LIMIT ?")) {
             stmt.setString(1, playerUuid.toString());
             stmt.setInt(2, limit);
             
@@ -228,6 +321,35 @@ public class ExternalDatabase implements Database {
                 history.add(new ConversationEntry(message, response));
             }
         } catch (SQLException e) {
+            LOGGER.error("Failed to get public conversation history: {}", e.getMessage());
+            e.printStackTrace();
+        }
+        return history;
+    }
+    
+    @Override
+    public List<ConversationEntry> getPrivateConversationHistory(UUID playerUuid, int limit) {
+        List<ConversationEntry> history = new ArrayList<>();
+        try (PreparedStatement stmt = connection.prepareStatement(
+            "SELECT message, response FROM private_conversations WHERE player_uuid = ? ORDER BY timestamp DESC LIMIT ?")) {
+            stmt.setString(1, playerUuid.toString());
+            stmt.setInt(2, limit);
+            
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                String message = rs.getString("message");
+                String response = rs.getString("response");
+                
+                // Decrypt messages if encryption is enabled
+                if (EncryptionManager.isEncryptionEnabled()) {
+                    message = decryptMessage(message);
+                    response = decryptMessage(response);
+                }
+                
+                history.add(new ConversationEntry(message, response));
+            }
+        } catch (SQLException e) {
+            LOGGER.error("Failed to get private conversation history: {}", e.getMessage());
             e.printStackTrace();
         }
         return history;
@@ -242,31 +364,64 @@ public class ExternalDatabase implements Database {
     }
 
     @Override
-    public void saveMessage(UUID playerUuid, String message, String response) {
-        // Implementation for saving a message
-        // This can be the same as addMessage or have different logic
-        addMessage(playerUuid, message, response);
-    }
-
-    @Override
     public void deletePlayerHistory(UUID playerUuid) {
+        // For backward compatibility, delete both public and private history
+        deletePlayerPublicHistory(playerUuid);
+        deletePlayerPrivateHistory(playerUuid);
+    }
+    
+    @Override
+    public void deletePlayerPublicHistory(UUID playerUuid) {
         try (PreparedStatement stmt = connection.prepareStatement(
-                "DELETE FROM conversations WHERE player_uuid = ?")) {
+                "DELETE FROM public_conversations WHERE player_uuid = ?")) {
             stmt.setString(1, playerUuid.toString());
             stmt.executeUpdate();
         } catch (SQLException e) {
+            LOGGER.error("Failed to delete player public history: {}", e.getMessage());
             e.printStackTrace();
-            throw new RuntimeException("Failed to delete player history", e);
+            throw new RuntimeException("Failed to delete player public history", e);
+        }
+    }
+    
+    @Override
+    public void deletePlayerPrivateHistory(UUID playerUuid) {
+        try (PreparedStatement stmt = connection.prepareStatement(
+                "DELETE FROM private_conversations WHERE player_uuid = ?")) {
+            stmt.setString(1, playerUuid.toString());
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            LOGGER.error("Failed to delete player private history: {}", e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to delete player private history", e);
         }
     }
 
     @Override
     public void deleteAllHistory() {
+        // For backward compatibility, delete both public and private history
+        deleteAllPublicHistory();
+        deleteAllPrivateHistory();
+    }
+    
+    @Override
+    public void deleteAllPublicHistory() {
         try (Statement stmt = connection.createStatement()) {
-            stmt.executeUpdate("DELETE FROM conversations");
+            stmt.executeUpdate("DELETE FROM public_conversations");
         } catch (SQLException e) {
+            LOGGER.error("Failed to delete all public history: {}", e.getMessage());
             e.printStackTrace();
-            throw new RuntimeException("Failed to delete all history", e);
+            throw new RuntimeException("Failed to delete all public history", e);
+        }
+    }
+    
+    @Override
+    public void deleteAllPrivateHistory() {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate("DELETE FROM private_conversations");
+        } catch (SQLException e) {
+            LOGGER.error("Failed to delete all private history: {}", e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to delete all private history", e);
         }
     }
 
@@ -277,6 +432,29 @@ public class ExternalDatabase implements Database {
                 connection.close();
             }
         } catch (SQLException e) {
+            LOGGER.error("Failed to close database connection: {}", e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private void cleanupOldMessages() {
+        try (PreparedStatement stmt = connection.prepareStatement(
+            "DELETE FROM public_conversations WHERE last_access < ?")) {
+            long cutoffTime = (System.currentTimeMillis() / 1000) - config.maxConversationAge;
+            stmt.setLong(1, cutoffTime);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            LOGGER.error("Failed to cleanup old public messages: {}", e.getMessage());
+            e.printStackTrace();
+        }
+        
+        try (PreparedStatement stmt = connection.prepareStatement(
+            "DELETE FROM private_conversations WHERE last_access < ?")) {
+            long cutoffTime = (System.currentTimeMillis() / 1000) - config.maxConversationAge;
+            stmt.setLong(1, cutoffTime);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            LOGGER.error("Failed to cleanup old private messages: {}", e.getMessage());
             e.printStackTrace();
         }
     }

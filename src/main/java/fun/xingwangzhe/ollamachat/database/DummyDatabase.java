@@ -1,5 +1,6 @@
 package fun.xingwangzhe.ollamachat.database;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -17,45 +18,86 @@ public class DummyDatabase implements Database {
     }
 
     @Override
-    public void addMessage(UUID playerUuid, String message, String response) {
-        // Do nothing
+    public void saveMessage(UUID playerUuid, String message, String response) {
+        // Dummy implementation - does nothing
     }
 
     @Override
-    public List<String> getRecentConversations(UUID playerUuid, int limit) {
-        // Return empty list
-        return List.of();
+    public void savePublicMessage(UUID playerUuid, String message, String response) {
+        // Dummy implementation - does nothing
+    }
+
+    @Override
+    public void savePrivateMessage(UUID playerUuid, String message, String response) {
+        // Dummy implementation - does nothing
     }
 
     @Override
     public List<ConversationEntry> getConversationHistory(UUID playerUuid, int limit) {
-        // Return empty list
-        return List.of();
+        // Dummy implementation - returns empty list
+        return new ArrayList<>();
     }
 
     @Override
-    public String decryptMessage(String encryptedMessage) {
-        // Return the message as is
-        return encryptedMessage;
+    public List<ConversationEntry> getPublicConversationHistory(UUID playerUuid, int limit) {
+        // Dummy implementation - returns empty list
+        return new ArrayList<>();
     }
 
     @Override
-    public void saveMessage(UUID playerUuid, String message, String response) {
-        // Do nothing
+    public List<ConversationEntry> getPrivateConversationHistory(UUID playerUuid, int limit) {
+        // Dummy implementation - returns empty list
+        return new ArrayList<>();
     }
 
     @Override
     public void deletePlayerHistory(UUID playerUuid) {
-        // Do nothing
+        // Dummy implementation - does nothing
+    }
+
+    @Override
+    public void deletePlayerPublicHistory(UUID playerUuid) {
+        // Dummy implementation - does nothing
+    }
+
+    @Override
+    public void deletePlayerPrivateHistory(UUID playerUuid) {
+        // Dummy implementation - does nothing
     }
 
     @Override
     public void deleteAllHistory() {
-        // Do nothing
+        // Dummy implementation - does nothing
+    }
+
+    @Override
+    public void deleteAllPublicHistory() {
+        // Dummy implementation - does nothing
+    }
+
+    @Override
+    public void deleteAllPrivateHistory() {
+        // Dummy implementation - does nothing
     }
 
     @Override
     public void close() {
-        // Do nothing
+        // Dummy implementation - does nothing
+    }
+
+    @Override
+    public String decryptMessage(String encryptedMessage) {
+        return encryptedMessage;
+    }
+
+    @Override
+    public void addMessage(UUID playerUuid, String message, String response) {
+        // Dummy implementation - does nothing
+    }
+
+    @Override
+    public List<String> getRecentConversations(UUID playerUuid, int limit) {
+        // Dummy implementation - returns empty list
+        return new ArrayList<>();
     }
 } 

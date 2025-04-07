@@ -34,6 +34,8 @@ import java.util.concurrent.CompletableFuture;
 import java.sql.SQLException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.util.ArrayList;
+import java.util.Collections;
 
 public class OllamachatServer implements DedicatedServerModInitializer {
     private static final HttpClient httpClient = HttpClient.newHttpClient();
@@ -206,29 +208,20 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                     return 1;
                                 }))
                         .then(literal("clearall")
+                                .requires(source -> source.hasPermissionLevel(config.opPermissionLevel))
                                 .executes(context -> {
                                     ServerCommandSource source = context.getSource();
                                     
-                                    // Check if the user has permission
-                                    if (!source.hasPermissionLevel(config.opPermissionLevel)) {
-                                        source.sendMessage(Text.literal("You don't have permission to use this command.")
-                                                .formatted(Formatting.RED));
-                                        return 0;
-                                    }
-                                    
                                     // Delete all chat history
                                     try {
-                                        database.deleteAllHistory();
-                                        source.sendMessage(Text.literal("All chat history has been cleared successfully!")
+                                        database.deleteAllPublicHistory();
+                                        database.deleteAllPrivateHistory();
+                                        source.sendMessage(Text.literal("All chat history has been cleared.")
                                                 .formatted(Formatting.GREEN));
-                                        
-                                        // Log the action
-                                        LOGGER.info("All chat history cleared by {}", source.getName());
-                                        
                                         return 1;
                                     } catch (Exception e) {
-                                        LOGGER.error("Failed to clear all chat history: {}", e.getMessage());
-                                        source.sendMessage(Text.literal("Failed to clear all chat history: ")
+                                        e.printStackTrace();
+                                        source.sendMessage(Text.literal("Error clearing all chat history: ")
                                                 .formatted(Formatting.RED)
                                                 .append(Text.literal(e.getMessage())
                                                         .formatted(Formatting.RED)));
@@ -275,14 +268,6 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                     // Send message to AI
                                     CompletableFuture.runAsync(() -> {
                                         try {
-                                            // Get conversation history if memory is enabled
-                                            String conversationContext = "";
-                                            if (config.enableMemory) {
-                                                // For public chat, use "ALL" as the player ID to get global history
-                                                var history = database.getRecentConversations(UUID.fromString("00000000-0000-0000-0000-000000000000"), config.memoryHistoryLimit);
-                                                conversationContext = String.join("\n", history);
-                                            }
-                                            
                                             // Process message and get response
                                             String response = handleAIRequest(source, messageWithUsername, false);
                                             
@@ -291,8 +276,8 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                             
                                             // Save to database if memory is enabled
                                             if (config.enableMemory) {
-                                                // For public chat, use "ALL" as the player ID to save global history
-                                                database.addMessage(UUID.fromString("00000000-0000-0000-0000-000000000000"), messageWithUsername, response);
+                                                // For public chat, use the player's actual UUID
+                                                database.savePublicMessage(playerId, messageWithUsername, response);
                                             }
                                             
                                             // Send response to all players with the new format
@@ -344,7 +329,8 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                     
                                     // Delete the player's chat history
                                     try {
-                                        database.deletePlayerHistory(playerId);
+                                        database.deletePlayerPublicHistory(playerId);
+                                        database.deletePlayerPrivateHistory(playerId);
                                         source.sendMessage(Text.literal("Your chat history has been cleared.")
                                                 .formatted(Formatting.GREEN));
                                         return 1;
@@ -357,6 +343,72 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                         return 0;
                                     }
                                 }))
+                        .then(literal("history")
+                                .then(argument("limit", IntegerArgumentType.integer(1, 30))
+                                        .executes(context -> {
+                                            ServerCommandSource source = context.getSource();
+                                            UUID playerId = source.getPlayer().getUuid();
+                                            int limit = IntegerArgumentType.getInteger(context, "limit");
+                                            
+                                            // Get the player's public conversation history
+                                            List<ConversationEntry> publicHistory = database.getPublicConversationHistory(playerId, limit);
+                                            
+                                            // Get the player's private conversation history
+                                            List<ConversationEntry> privateHistory = database.getPrivateConversationHistory(playerId, limit);
+                                            
+                                            // Get the formatting for the AI response
+                                            Formatting responseFormatting = getFormattingFromString(config.responseColor);
+                                            
+                                            // Display public conversation history
+                                            if (!publicHistory.isEmpty()) {
+                                                source.sendMessage(Text.literal("=== Public Conversation History ===")
+                                                        .formatted(Formatting.GOLD, Formatting.BOLD));
+                                                
+                                                // Create a copy of the list and reverse it to show oldest first
+                                                List<ConversationEntry> chronologicalPublicHistory = new ArrayList<>(publicHistory);
+                                                Collections.reverse(chronologicalPublicHistory);
+                                                
+                                                for (ConversationEntry entry : chronologicalPublicHistory) {
+                                                    source.sendMessage(Text.literal("You: ")
+                                                            .formatted(Formatting.GREEN)
+                                                            .append(Text.literal(entry.getMessage())
+                                                                    .formatted(Formatting.WHITE)));
+                                                    source.sendMessage(Text.literal("AI: ")
+                                                            .formatted(responseFormatting)
+                                                            .append(Text.literal(entry.getResponse())
+                                                                    .formatted(Formatting.WHITE)));
+                                                }
+                                            }
+                                            
+                                            // Display private conversation history
+                                            if (!privateHistory.isEmpty()) {
+                                                source.sendMessage(Text.literal("=== Private Conversation History ===")
+                                                        .formatted(Formatting.GOLD, Formatting.BOLD));
+                                                
+                                                // Create a copy of the list and reverse it to show oldest first
+                                                List<ConversationEntry> chronologicalPrivateHistory = new ArrayList<>(privateHistory);
+                                                Collections.reverse(chronologicalPrivateHistory);
+                                                
+                                                for (ConversationEntry entry : chronologicalPrivateHistory) {
+                                                    source.sendMessage(Text.literal("You: ")
+                                                            .formatted(Formatting.GREEN)
+                                                            .append(Text.literal(entry.getMessage())
+                                                                    .formatted(Formatting.WHITE)));
+                                                    source.sendMessage(Text.literal("AI: ")
+                                                            .formatted(responseFormatting)
+                                                            .append(Text.literal(entry.getResponse())
+                                                                    .formatted(Formatting.WHITE)));
+                                                }
+                                            }
+                                            
+                                            // If no history is found
+                                            if (publicHistory.isEmpty() && privateHistory.isEmpty()) {
+                                                source.sendMessage(Text.literal("No conversation history found.")
+                                                        .formatted(Formatting.YELLOW));
+                                            }
+                                            
+                                            return 1;
+                                        })))
                         .then(literal("help")
                                 .executes(context -> {
                                     ServerCommandSource source = context.getSource();
@@ -386,6 +438,10 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                     source.sendMessage(Text.literal("/" + aiName + " clear")
                                             .formatted(Formatting.YELLOW)
                                             .append(Text.literal(" - Clear your chat history")
+                                                    .formatted(Formatting.WHITE)));
+                                    source.sendMessage(Text.literal("/" + aiName + " history <1-30>")
+                                            .formatted(Formatting.YELLOW)
+                                            .append(Text.literal(" - View your conversation history")
                                                     .formatted(Formatting.WHITE)));
                                     
                                     // Features
@@ -454,14 +510,6 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                     // Send message to AI
                                     CompletableFuture.runAsync(() -> {
                                         try {
-                                            // Get conversation history if memory is enabled
-                                            String conversationContext = "";
-                                            if (config.enableMemory) {
-                                                // For private chat, use the player's actual UUID
-                                                var history = database.getRecentConversations(playerId, config.memoryHistoryLimit);
-                                                conversationContext = String.join("\n", history);
-                                            }
-                                            
                                             // Process message and get response
                                             String response = handleAIRequest(source, messageWithUsername, true);
                                             
@@ -471,7 +519,7 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                             // Save to database if memory is enabled
                                             if (config.enableMemory) {
                                                 // For private chat, use the player's actual UUID
-                                                database.addMessage(playerId, messageWithUsername, response);
+                                                database.savePrivateMessage(playerId, messageWithUsername, response);
                                             }
                                             
                                             // Send response to player (private) with the new format
@@ -523,7 +571,8 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                     
                                     // Delete the player's chat history
                                     try {
-                                        database.deletePlayerHistory(playerId);
+                                        database.deletePlayerPublicHistory(playerId);
+                                        database.deletePlayerPrivateHistory(playerId);
                                         source.sendMessage(Text.literal("Your chat history has been cleared.")
                                                 .formatted(Formatting.GREEN));
                                         return 1;
@@ -535,7 +584,74 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                                                         .formatted(Formatting.RED)));
                                         return 0;
                                     }
-                                })));
+                                }))
+                        .then(literal("history")
+                                .then(argument("limit", IntegerArgumentType.integer(1, 30))
+                                        .executes(context -> {
+                                            ServerCommandSource source = context.getSource();
+                                            UUID playerId = source.getPlayer().getUuid();
+                                            int limit = IntegerArgumentType.getInteger(context, "limit");
+                                            
+                                            // Get the player's public conversation history
+                                            List<ConversationEntry> publicHistory = database.getPublicConversationHistory(playerId, limit);
+                                            
+                                            // Get the player's private conversation history
+                                            List<ConversationEntry> privateHistory = database.getPrivateConversationHistory(playerId, limit);
+                                            
+                                            // Get the formatting for the AI response
+                                            Formatting responseFormatting = getFormattingFromString(config.responseColor);
+                                            
+                                            // Display public conversation history
+                                            if (!publicHistory.isEmpty()) {
+                                                source.sendMessage(Text.literal("=== Public Conversation History ===")
+                                                        .formatted(Formatting.GOLD, Formatting.BOLD));
+                                                
+                                                // Create a copy of the list and reverse it to show oldest first
+                                                List<ConversationEntry> chronologicalPublicHistory = new ArrayList<>(publicHistory);
+                                                Collections.reverse(chronologicalPublicHistory);
+                                                
+                                                for (ConversationEntry entry : chronologicalPublicHistory) {
+                                                    source.sendMessage(Text.literal("You: ")
+                                                            .formatted(Formatting.GREEN)
+                                                            .append(Text.literal(entry.getMessage())
+                                                                    .formatted(Formatting.WHITE)));
+                                                    source.sendMessage(Text.literal("AI: ")
+                                                            .formatted(responseFormatting)
+                                                            .append(Text.literal(entry.getResponse())
+                                                                    .formatted(Formatting.WHITE)));
+                                                }
+                                            }
+                                            
+                                            // Display private conversation history
+                                            if (!privateHistory.isEmpty()) {
+                                                source.sendMessage(Text.literal("=== Private Conversation History ===")
+                                                        .formatted(Formatting.GOLD, Formatting.BOLD));
+                                                
+                                                // Create a copy of the list and reverse it to show oldest first
+                                                List<ConversationEntry> chronologicalPrivateHistory = new ArrayList<>(privateHistory);
+                                                Collections.reverse(chronologicalPrivateHistory);
+                                                
+                                                for (ConversationEntry entry : chronologicalPrivateHistory) {
+                                                    source.sendMessage(Text.literal("You: ")
+                                                            .formatted(Formatting.GREEN)
+                                                            .append(Text.literal(entry.getMessage())
+                                                                    .formatted(Formatting.WHITE)));
+                                                    source.sendMessage(Text.literal("AI: ")
+                                                            .formatted(responseFormatting)
+                                                            .append(Text.literal(entry.getResponse())
+                                                                    .formatted(Formatting.WHITE)));
+                                                }
+                                            }
+                                            
+                                            // If no history is found
+                                            if (publicHistory.isEmpty() && privateHistory.isEmpty()) {
+                                                source.sendMessage(Text.literal("No conversation history found.")
+                                                        .formatted(Formatting.YELLOW));
+                                            }
+                                            
+                                            return 1;
+                                        })))
+                );
 
                 // Register the help command
                 dispatcher.register(literal("help")
@@ -585,44 +701,43 @@ public class OllamachatServer implements DedicatedServerModInitializer {
             UUID playerId = source.getPlayer().getUuid();
             String playerName = source.getPlayer().getName().getString();
             
-            // Get conversation history for context if memory is enabled
-            String prompt;
-            if (config.enableMemory) {
-                List<ConversationEntry> history;
-                
-                if (isPrivate) {
-                    // For private chat, use the player's actual UUID
-                    history = database.getConversationHistory(playerId, config.memoryHistoryLimit);
-                } else {
-                    // For public chat, use "ALL" as the player ID to get global history
-                    history = database.getConversationHistory(UUID.fromString("00000000-0000-0000-0000-000000000000"), config.memoryHistoryLimit);
-                }
-                
-                // Create a more explicit context that clearly shows who said what
-                StringBuilder contextBuilder = new StringBuilder();
-                
-                if (!history.isEmpty()) {
-                    contextBuilder.append("Previous conversation:\n");
-                    
-                    for (ConversationEntry entry : history) {
-                        // Extract username from the message if it's in the format "username: message"
-                        String messageText = entry.getMessage();
-                        String responseText = entry.getResponse();
-                        
-                        // Format each message to clearly show who said what
-                        contextBuilder.append(messageText).append("\n");
-                        contextBuilder.append("AI: ").append(responseText).append("\n\n");
-                    }
-                }
-                
-                // Add the current message with clear indication of who is speaking
-                contextBuilder.append("Current message from ").append(playerName).append(": ").append(message);
-                
-                prompt = contextBuilder.toString();
+            // Get conversation history for context based on whether it's private or public
+            List<ConversationEntry> history;
+            if (isPrivate) {
+                history = database.getPrivateConversationHistory(playerId, config.memoryHistoryLimit);
             } else {
-                // If memory is disabled, still include the username in the message
-                prompt = "Message from " + playerName + ": " + message;
+                history = database.getPublicConversationHistory(playerId, config.memoryHistoryLimit);
             }
+            
+            // Create a more explicit context that clearly shows who said what
+            StringBuilder contextBuilder = new StringBuilder();
+            
+            if (!history.isEmpty()) {
+                contextBuilder.append("Previous conversation:\n");
+                
+                for (ConversationEntry entry : history) {
+                    // Extract username from the message if it's in the format "username: message"
+                    String messageText = entry.getMessage();
+                    String responseText = entry.getResponse();
+                    
+                    // Check if the message already has a username prefix
+                    if (messageText.contains(": ")) {
+                        // Message already has a username prefix, use it as is
+                        contextBuilder.append(messageText).append("\n");
+                    } else {
+                        // Add a generic "User" prefix if no username is found
+                        contextBuilder.append("User: ").append(messageText).append("\n");
+                    }
+                    
+                    // Format the AI response
+                    contextBuilder.append("AI: ").append(responseText).append("\n\n");
+                }
+            }
+            
+            // Add the current message with clear indication of who is speaking
+            contextBuilder.append("Current message from ").append(playerName).append(": ").append(message);
+            
+            String prompt = contextBuilder.toString();
 
             JsonObject requestBody = new JsonObject();
             requestBody.addProperty("model", currentModel);
@@ -647,6 +762,13 @@ public class OllamachatServer implements DedicatedServerModInitializer {
                     }
                     if (aiResponse.length() > config.maxResponseLength) {
                         aiResponse = aiResponse.substring(0, config.maxResponseLength) + "...";
+                    }
+                    
+                    // Save the message and response to the appropriate database
+                    if (isPrivate) {
+                        database.savePrivateMessage(playerId, message, aiResponse);
+                    } else {
+                        database.savePublicMessage(playerId, message, aiResponse);
                     }
                     
                     return aiResponse;
