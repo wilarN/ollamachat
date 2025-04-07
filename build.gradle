@@ -38,6 +38,10 @@ dependencies {
     // MySQL driver for external database support
     modImplementation 'mysql:mysql-connector-java:8.0.33'
     modImplementation 'org.xerial:sqlite-jdbc:3.45.1.0'
+    
+    // Kosmolot's SQLite mod must be manually installed
+    // Download from https://modrinth.com/mod/kosmolot-sqlite
+    // Place the .jar file in the mods folder (~/.minecraft/mods/)
 }
 
 shadowJar {

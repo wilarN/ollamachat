@@ -7,7 +7,11 @@ import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.text.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import fun.xingwangzhe.ollamachat.config.ModConfig;
+import fun.xingwangzhe.ollamachat.database.ConversationEntry;
+import com.mojang.authlib.GameProfile;
 
+import java.io.StringReader;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -16,11 +20,18 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.List;
+import java.util.UUID;
+import java.util.ArrayList;
 
 public class OllamaHttpClient {
     private static final Logger LOGGER = LoggerFactory.getLogger("OllamaChat-Client");
-    private static final String OLLAMA_API_URL = "http://localhost:11434/api/generate";
     private static final AtomicInteger activeRequests = new AtomicInteger(0);
+    private static ModConfig config;
+
+    public static void initialize(ModConfig modConfig) {
+        config = modConfig;
+    }
 
     public static void handleAIRequest(String message, boolean isPrivate) {
         if (activeRequests.get() > 0) {
@@ -39,14 +50,37 @@ public class OllamaHttpClient {
                     .connectTimeout(Duration.ofSeconds(10))
                     .build();
 
+                // Get conversation history for context
+                StringBuilder contextBuilder = new StringBuilder();
+                if (config.enableMemory) {
+                    GameProfile profile = MinecraftClient.getInstance().getGameProfile();
+                    if (profile != null && profile.getId() != null) {
+                        List<ConversationEntry> history;
+                        if (isPrivate) {
+                            history = OllamaClientDatabase.getPrivateConversationHistory(profile.getId(), config.memoryHistoryLimit);
+                        } else {
+                            history = OllamaClientDatabase.getPublicConversationHistory(profile.getId(), config.memoryHistoryLimit);
+                        }
+                        
+                        if (!history.isEmpty()) {
+                            contextBuilder.append("Previous conversation:\n");
+                            for (ConversationEntry entry : history) {
+                                contextBuilder.append(String.format(config.memoryFormat, 
+                                    entry.getMessage(), 
+                                    entry.getResponse())).append("\n\n");
+                            }
+                        }
+                    }
+                }
+
                 // Create request body
                 JsonObject requestBody = new JsonObject();
-                requestBody.addProperty("model", "llama2");
-                requestBody.addProperty("prompt", "Message: " + message + "\n\nPlease provide a direct response without using a conversation format or role-playing.");
+                requestBody.addProperty("model", OllamaModelManager.getCurrentModel());
+                requestBody.addProperty("prompt", contextBuilder.toString() + message);
 
                 // Create HTTP request
                 HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(OLLAMA_API_URL))
+                    .uri(URI.create(config.ollamaApiUrl))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
                     .build();
@@ -56,19 +90,24 @@ public class OllamaHttpClient {
 
                 // Handle response
                 if (response.statusCode() == 200) {
-                    JsonObject jsonResponse = JsonParser.parseString(response.body()).getAsJsonObject();
-                    String aiResponse = jsonResponse.get("response").getAsString();
+                    String responseBody = response.body();
+                    LOGGER.debug("Raw response: " + responseBody);
                     
-                    // Format response - use a more direct format
-                    String formattedResponse = "[AI] " + aiResponse;
+                    // Parse the response using a more lenient approach
+                    String aiResponse = parseOllamaResponse(responseBody);
+                    
+                    // Format response to look like a player message
+                    String formattedResponse = "<AI> " + aiResponse;
                     
                     // Send to chat
                     ClientPlayerEntity player = MinecraftClient.getInstance().player;
                     if (player != null) {
                         player.sendMessage(Text.literal(formattedResponse), false);
                         
-                        // Save to database
-                        OllamaMessageHandler.handleAIResponse(aiResponse);
+                        // Save to database if memory is enabled
+                        if (config.enableMemory) {
+                            OllamaClientDatabase.saveMessage(message, aiResponse, isPrivate);
+                        }
                     }
                 } else {
                     ClientPlayerEntity player = MinecraftClient.getInstance().player;
@@ -86,5 +125,46 @@ public class OllamaHttpClient {
                 activeRequests.decrementAndGet();
             }
         });
+    }
+    
+    private static String parseOllamaResponse(String responseBody) {
+        try {
+            // Try to parse as a single JSON object first
+            try {
+                JsonObject jsonResponse = JsonParser.parseString(responseBody).getAsJsonObject();
+                if (jsonResponse.has("response")) {
+                    return jsonResponse.get("response").getAsString();
+                }
+            } catch (Exception e) {
+                LOGGER.debug("Failed to parse as single JSON object: " + e.getMessage());
+            }
+            
+            // If that fails, try to parse as a stream of JSON objects
+            StringBuilder result = new StringBuilder();
+            String[] lines = responseBody.split("\n");
+            
+            for (String line : lines) {
+                if (line.trim().isEmpty()) continue;
+                
+                try {
+                    JsonObject jsonLine = JsonParser.parseString(line).getAsJsonObject();
+                    if (jsonLine.has("response")) {
+                        result.append(jsonLine.get("response").getAsString());
+                    }
+                } catch (Exception e) {
+                    LOGGER.debug("Failed to parse line: " + line + " - " + e.getMessage());
+                }
+            }
+            
+            if (result.length() > 0) {
+                return result.toString();
+            }
+            
+            // If all parsing fails, return the raw response
+            return responseBody;
+        } catch (Exception e) {
+            LOGGER.error("Error parsing Ollama response: " + e.getMessage());
+            return "Error parsing response: " + e.getMessage();
+        }
     }
 }

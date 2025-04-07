@@ -5,40 +5,27 @@ import fun.xingwangzhe.ollamachat.config.ModConfig;
 import fun.xingwangzhe.ollamachat.database.Database;
 import fun.xingwangzhe.ollamachat.database.LocalDatabase;
 import fun.xingwangzhe.ollamachat.database.DummyDatabase;
+import fun.xingwangzhe.ollamachat.database.ConversationEntry;
 import net.minecraft.client.MinecraftClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.util.List;
 import java.util.UUID;
 
 public class OllamaClientDatabase {
     private static final Logger LOGGER = LoggerFactory.getLogger("OllamaChat-Client");
     private static Database database;
+    private static ModConfig config;
 
-    public static void initialize(ModConfig config) {
+    public static void initialize(ModConfig modConfig) {
+        config = modConfig;
         try {
-            // Try to create local database
             database = new LocalDatabase(config);
-            LOGGER.info("Initialized local database for client");
+            LOGGER.info("Client database initialized successfully");
         } catch (Exception e) {
-            if (e.getMessage().contains("SQLite JDBC driver not found")) {
-                LOGGER.error("SQLite driver not found. Please install the SQLite mod.");
-            } else {
-                LOGGER.error("Failed to initialize database: " + e.getMessage());
-            }
-            // Fallback to dummy database
+            LOGGER.error("Failed to initialize client database: " + e.getMessage());
+            LOGGER.info("Falling back to dummy database");
             database = new DummyDatabase();
-            LOGGER.info("Using dummy database (no persistence)");
-        }
-    }
-
-    public static void close() {
-        if (database != null) {
-            try {
-                database.close();
-                LOGGER.info("Closed OllamaChat client database");
-            } catch (Exception e) {
-                LOGGER.error("Failed to close database: " + e.getMessage());
-            }
         }
     }
 
@@ -61,7 +48,7 @@ public class OllamaClientDatabase {
                 return;
             }
             
-            // Save to appropriate database
+            // Save message to appropriate history
             if (isPrivate) {
                 database.savePrivateMessage(playerUuid, message, response);
             } else {
@@ -69,6 +56,34 @@ public class OllamaClientDatabase {
             }
         } catch (Exception e) {
             LOGGER.error("Failed to save message: " + e.getMessage());
+        }
+    }
+
+    public static List<ConversationEntry> getPublicConversationHistory(UUID playerUuid, int limit) {
+        if (database == null) {
+            LOGGER.error("Database not initialized");
+            return List.of();
+        }
+
+        try {
+            return database.getPublicConversationHistory(playerUuid, limit);
+        } catch (Exception e) {
+            LOGGER.error("Failed to get public conversation history: " + e.getMessage());
+            return List.of();
+        }
+    }
+
+    public static List<ConversationEntry> getPrivateConversationHistory(UUID playerUuid, int limit) {
+        if (database == null) {
+            LOGGER.error("Database not initialized");
+            return List.of();
+        }
+
+        try {
+            return database.getPrivateConversationHistory(playerUuid, limit);
+        } catch (Exception e) {
+            LOGGER.error("Failed to get private conversation history: " + e.getMessage());
+            return List.of();
         }
     }
 
@@ -99,6 +114,16 @@ public class OllamaClientDatabase {
             }
         } catch (Exception e) {
             LOGGER.error("Failed to clear history: " + e.getMessage());
+        }
+    }
+
+    public static void close() {
+        if (database != null) {
+            try {
+                database.close();
+            } catch (Exception e) {
+                LOGGER.error("Failed to close database: " + e.getMessage());
+            }
         }
     }
 } 

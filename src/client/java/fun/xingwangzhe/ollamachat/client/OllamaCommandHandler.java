@@ -14,6 +14,8 @@ import net.minecraft.util.Formatting;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import net.minecraft.client.MinecraftClient;
+import java.util.List;
 
 public class OllamaCommandHandler {
     private static final ExecutorService COMMAND_EXECUTOR = Executors.newFixedThreadPool(2);
@@ -89,7 +91,6 @@ public class OllamaCommandHandler {
                 .then(ClientCommandManager.argument("message", StringArgumentType.greedyString())
                         .executes(context -> {
                             String message = StringArgumentType.getString(context, "message");
-                            context.getSource().sendFeedback(Text.literal("Sending message to AI: " + message));
                             OllamaMessageHandler.setProcessingCommand(true);
                             try {
                                 OllamaHttpClient.handleAIRequest(message, true);
@@ -113,8 +114,9 @@ public class OllamaCommandHandler {
                         .then(ClientCommandManager.argument("limit", IntegerArgumentType.integer(1, 30))
                                 .executes(context -> {
                                     int limit = IntegerArgumentType.getInteger(context, "limit");
-                                    context.getSource().sendFeedback(Text.literal("Showing last " + limit + " messages:"));
-                                    // TODO: Implement history display
+                                    
+                                    // For now, just show a message that history is not available in client mode
+                                    context.getSource().sendFeedback(Text.literal("Conversation history is not available in client mode."));
                                     return 1;
                                 })))
         );

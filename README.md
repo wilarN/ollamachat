@@ -177,6 +177,63 @@ The encryption system uses AES encryption with a random initialization vector (I
 - Run `ollama serve` in your terminal to start the local service.
 - Download models using `ollama pull <model-name>` (e.g., `llama3`).
 
+## Local Client Guide
+
+### Installation
+1. Download the latest release of OllamaChat mod from the releases page
+2. Place the mod JAR file in your Minecraft's `mods` folder
+3. Make sure you have Fabric Loader installed
+4. Start Minecraft with the Fabric profile
+
+### Configuration
+The mod creates a configuration file at `config/ollamachat.json`. You can modify these settings:
+
+```json
+{
+  "ollamaApiUrl": "http://localhost:11434/api/generate",
+  "defaultModel": "llama3",
+  "aiCommandPrefix": "ai",
+  "enableChatPrefix": true,
+  "chatPrefix": "[AI]",
+  "prefixColor": "gold",
+  "responseColor": "aqua",
+  "privateChatPrefix": "pai",
+  "maxResponseLength": 1000,
+  "stripHtmlTags": true,
+  "messageCooldown": 5,
+  "enableMemory": true,
+  "memoryHistoryLimit": 5
+}
+```
+
+### Client Commands
+- `/[aiCommandPrefix] <message>` - Chat with the AI in public chat
+- `/p[aiCommandPrefix] <message>` - Chat with the AI in private chat (only visible to you)
+- `/[aiCommandPrefix] clear` - Delete your chat history
+- `/[aiCommandPrefix] history <1-30>` - View your conversation history
+- `/[aiCommandPrefix] help` - Show help information about the mod
+- `/ollama list` - List available AI models
+- `/ollama model <modelname>` - Set the AI model to use
+- `/ollama reload` - Reload the configuration
+- `/ollama serve` - Start the Ollama service
+- `/ollama ps` - View active model processes
+
+### Changing Models
+1. Make sure you have downloaded the model using `ollama pull <model-name>`
+2. In-game, use `/ollama list` to see available models
+3. Use `/ollama model <modelname>` to switch to a different model
+4. The command will suggest available models as you type
+
+### Troubleshooting
+- If the mod doesn't connect to Ollama, make sure:
+  - Ollama is running (`ollama serve` in terminal)
+  - The API URL in config matches your Ollama installation
+  - You have downloaded at least one model
+- If commands don't work:
+  - Check if the command prefix matches your config (default is "ai")
+  - Try reloading the config with `/ollama reload`
+  - Restart Minecraft if changes aren't taking effect
+
 ### Quick Ollama Installation Guide
 
 > **Disclaimer**: This is a basic guide for getting started. For the most up-to-date installation instructions and troubleshooting, please refer to the [official Ollama documentation](https://github.com/ollama/ollama/blob/main/README.md#quickstart).

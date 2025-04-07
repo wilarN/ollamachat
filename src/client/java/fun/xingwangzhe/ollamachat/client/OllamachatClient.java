@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import fun.xingwangzhe.ollamachat.client.OllamaCommandHandler;
 import fun.xingwangzhe.ollamachat.client.OllamaMessageHandler;
 import fun.xingwangzhe.ollamachat.client.OllamaClientDatabase;
+import fun.xingwangzhe.ollamachat.client.OllamaHttpClient;
 import fun.xingwangzhe.ollamachat.config.ModConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,10 +25,11 @@ public class OllamachatClient implements ClientModInitializer {
         
         // Set client-specific config
         config.requireOpForCommands = false;
-        config.ollamaApiUrl = "http://localhost:11434/api/generate";
         
-        // Initialize database
+        // Initialize components
         OllamaClientDatabase.initialize(config);
+        OllamaHttpClient.initialize(config);
+        OllamaModelManager.setCurrentModel(config.defaultModel);
         
         // Schedule model update
         Executors.newSingleThreadScheduledExecutor()
